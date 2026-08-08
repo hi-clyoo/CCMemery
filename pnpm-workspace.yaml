@@ -1,0 +1,6 @@
+ignoredBuiltDependencies:
+  - cpu-features
+  - electron
+  - esbuild
+  - ssh2
+  - unrs-resolver
