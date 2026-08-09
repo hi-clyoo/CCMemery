@@ -110,6 +110,7 @@ export default function App() {
   const [isSaving, setIsSaving] = useState(false)
   const [loadingFiles, setLoadingFiles] = useState(false)
   const [showAbout, setShowAbout] = useState(false)
+  const [rulesExpanded, setRulesExpanded] = useState(true)
   const [globalSelected, setGlobalSelected] = useState(false)
   const [globalGroups, setGlobalGroups] = useState<FileGroup[]>([])
   const [col1Width, setCol1Width] = useState(240)
@@ -251,6 +252,7 @@ export default function App() {
   }, [expandedProject, loadSessions])
 
   const handleProjectClick = useCallback((proj: Project) => {
+    setGlobalSelected(false)
     setSelectedProjectId(proj.id)
     setSelectedProjectPath(proj.path || proj.name)
     setSelectedFile(null)
@@ -425,12 +427,6 @@ export default function App() {
                         <span style={{ color: group.color }} className="font-semibold uppercase tracking-wide">{group.label}</span>
                         <span className="text-text-muted ml-auto">{group.files.length}</span>
                       </div>
-                      {group.expanded && (
-                        <div className="px-10 pb-1 space-y-0.5">
-                          <div className="text-[10px] text-text-secondary leading-relaxed">{group.desc}</div>
-                          <div className="text-[10px] text-text-muted font-mono truncate">{group.path}</div>
-                        </div>
-                      )}
                       {group.expanded && group.files.map((f) => (
                         <div key={f.path} onClick={() => handleSelectFile(f)}
                           className={`pl-10 pr-3 py-1.5 cursor-pointer text-xs transition-colors flex items-center gap-2 ${
@@ -477,13 +473,6 @@ export default function App() {
                         </span>
                         <span className="text-text-muted ml-auto">{group.files.length}</span>
                       </div>
-                      {group.expanded && (
-                        <div className="px-10 pb-1.5 mb-1 space-y-0.5 border-b border-border/50">
-                          <div className="text-[10px] text-text-muted leading-relaxed">{group.desc}</div>
-                          <div className="text-[10px] text-text-muted font-mono truncate">{group.path}</div>
-                          <div className="text-[10px] text-text-muted">{group.priority}</div>
-                        </div>
-                      )}
                       {group.expanded && group.files.map((f) => (
                         <div
                           key={f.path}
@@ -544,17 +533,41 @@ export default function App() {
             </div>
           ) : selectedFile ? (
             <div className="flex-1 flex flex-col min-h-0">
-              <div className="flex items-center justify-between px-4 py-2 border-b border-border bg-surface-sidebar"
+              {/* Collapsible loading rules for this memory type */}
+              {(() => {
+                const def = GROUP_DEFS.find(g => g.type === selectedFile.type)
+                if (!def) return null
+                return (
+                  <div className="border-b border-border">
+                    <div
+                      onClick={() => setRulesExpanded(!rulesExpanded)}
+                      className="px-4 py-1.5 flex items-center gap-2 cursor-pointer hover:bg-surface-raised/50 transition-colors select-none"
+                    >
+                      <span className="text-[10px] text-text-muted">{rulesExpanded ? '▼' : '▶'}</span>
+                      <span>{def.icon}</span>
+                      <span style={{ color: def.color }} className="text-[10px] font-semibold uppercase tracking-wide">{def.label}</span>
+                      <span className="text-[10px] text-text-muted">— {def.desc.slice(0, 60)}…</span>
+                    </div>
+                    {rulesExpanded && (
+                      <div className="px-4 pb-2 space-y-1">
+                        <p className="text-[10px] text-text-secondary leading-relaxed">{def.desc}</p>
+                        <p className="text-[10px] text-text-muted font-mono">{def.path}</p>
+                        <p className="text-[10px] text-text-muted">{def.priority}</p>
+                      </div>
+                    )}
+                  </div>
+                )
+              })()}
+              {/* File path + actions + info */}
+              <div className="flex items-center justify-between px-4 py-1.5 border-b border-border bg-surface-sidebar/30"
                 style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}>
-                <div className="flex min-w-0 items-center gap-3 text-xs">
-                  <span style={{ color: GROUP_DEFS.find(g => g.type === selectedFile.type)?.color }}>
-                    {GROUP_DEFS.find(g => g.type === selectedFile.type)?.icon}
-                  </span>
-                  <span className="truncate font-mono text-text-secondary">{selectedFile.path.split(/[\\/]/).pop()}</span>
-                  <span className="text-text-muted">{shortenPath(selectedFile.path)}</span>
-                  {isDirty && <span className="text-yellow-500">● 未保存</span>}
+                <div className="flex min-w-0 items-center gap-2 text-xs">
+                  <span className="font-mono text-text-secondary truncate">{selectedFile.path.split(/[\\/]/).pop()}</span>
+                  <span className="text-text-muted text-[10px]">{shortenPath(selectedFile.path)}</span>
+                  {isDirty && <span className="text-yellow-500 text-[10px]">● 未保存</span>}
+                  <span className="text-text-muted text-[10px]">| {editingContent.split('\n').length} lines · {new Blob([editingContent]).size.toLocaleString()} bytes · {formatTokens(Math.ceil(editingContent.length / 4))}</span>
                 </div>
-                <div className="flex items-center gap-2" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
+                <div className="flex items-center gap-2 shrink-0" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
                   <button onClick={handleSave} disabled={isSaving || !isDirty}
                     className={`text-xs px-3 py-1 rounded ${
                       isDirty ? 'bg-green-600 hover:bg-green-500 text-white' : 'bg-surface-raised text-text-muted'
@@ -568,11 +581,6 @@ export default function App() {
                     </button>
                   )}
                 </div>
-              </div>
-              <div className="px-4 py-1 bg-surface-sidebar/30 border-b border-border/50 flex gap-4 text-[10px] text-text-muted">
-                <span>{editingContent.split('\n').length} lines</span>
-                <span>{new Blob([editingContent]).size.toLocaleString()} bytes</span>
-                <span>{formatTokens(Math.ceil(editingContent.length / 4))}</span>
               </div>
               <CodeMirrorEditor value={editingContent} onChange={(v) => { setEditingContent(v); setIsDirty(true) }} />
             </div>
