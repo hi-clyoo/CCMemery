@@ -44,6 +44,12 @@ const getWindowIconPath = (): string | undefined => {
   return undefined;
 };
 
+function setMacDockIcon(): void {
+  if (process.platform !== 'darwin' || !app.dock || app.isPackaged) return;
+  const iconPath = getWindowIconPath();
+  if (iconPath) app.dock.setIcon(iconPath);
+}
+
 const logger = createLogger('App');
 
 let mainWindow: BrowserWindow | null = null;
@@ -221,6 +227,7 @@ void app.whenReady().then(async () => {
     initializeServices();
     const config = configManager.getConfig();
     app.setLoginItemSettings({ openAtLogin: config.general.launchAtLogin });
+    setMacDockIcon();
     createWindow();
     notificationManager.on('notification-clicked', () => {
       if (mainWindow) { mainWindow.show(); mainWindow.focus(); }

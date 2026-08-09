@@ -640,9 +640,16 @@ function CodeMirrorEditor({ value, onChange, readOnly }: { value: string; onChan
 
   function createView(container: HTMLDivElement) {
     const isLight = isLightRef.current
+    // Constrain the editor to its container height; without this, .cm-editor
+    // grows to the full document height and the page becomes unscrollable.
+    const fillTheme = EditorView.theme({
+      '&': { height: '100%' },
+      '.cm-scroller': { overflowY: 'auto' },
+    })
     const state = EditorState.create({
       doc: value,
       extensions: [
+        fillTheme,
         markdown(),
         ...(isLight ? [] : [oneDark]),
         lineNumbers(),
