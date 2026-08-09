@@ -108,7 +108,9 @@ export default function App() {
   const [editingContent, setEditingContent] = useState('')
   const [isDirty, setIsDirty] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
+  const [diskUpdated, setDiskUpdated] = useState(false)
   const [loadingFiles, setLoadingFiles] = useState(false)
+  const originalContentRef = useRef('')
   const [showAbout, setShowAbout] = useState(false)
   const [rulesExpanded, setRulesExpanded] = useState(true)
   const [globalSelected, setGlobalSelected] = useState(false)
@@ -160,6 +162,26 @@ export default function App() {
     })
     return unsub
   }, [selectedProjectId, selectedProjectPath])
+
+  // Detect disk changes when window regains focus
+  useEffect(() => {
+    const onFocus = async () => {
+      if (!selectedFile) return
+      try {
+        let r: { success: boolean; content?: string; error?: string } = { success: false }
+        if (selectedFile.type === 'AutoMem') {
+          r = await window.electronAPI.memory.readFile(selectedProjectId!, selectedFile.path.split(/[\\/]/).pop()!)
+        } else {
+          r = await window.electronAPI.readFileByPath(selectedFile.path)
+        }
+        if (r.success && r.content !== undefined && r.content !== editingContent) {
+          setDiskUpdated(true)
+        }
+      } catch { /* */ }
+    }
+    window.addEventListener('focus', onFocus)
+    return () => window.removeEventListener('focus', onFocus)
+  }, [selectedFile, editingContent, selectedProjectId])
 
   // Column resize handlers
   useEffect(() => {
@@ -282,13 +304,17 @@ export default function App() {
   }, [])
 
   const handleSelectFile = useCallback((f: MemFile) => {
+    const content = f.content || ''
+    originalContentRef.current = content
     setSelectedFile(f)
-    setEditingContent(f.content || '')
+    setEditingContent(content)
     setIsDirty(false)
+    setDiskUpdated(false)
   }, [])
 
   const handleSave = useCallback(async () => {
     if (!selectedFile) return
+    if (diskUpdated && !confirm('磁盘文件已被外部修改，覆盖保存？')) return
     setIsSaving(true)
     try {
       if (selectedFile.type === 'AutoMem') {
@@ -297,12 +323,13 @@ export default function App() {
       } else {
         await window.electronAPI.writeFileByPath(selectedFile.path, editingContent)
       }
+      originalContentRef.current = editingContent
       setIsDirty(false)
-      // Reload
+      setDiskUpdated(false)
       if (selectedProjectId) loadAllFiles(selectedProjectId, selectedProjectPath)
     } catch { /* */ }
     finally { setIsSaving(false) }
-  }, [selectedFile, editingContent, selectedProjectId, selectedProjectPath, loadAllFiles])
+  }, [selectedFile, editingContent, selectedProjectId, selectedProjectPath, loadAllFiles, diskUpdated])
 
   const handleDelete = useCallback(async () => {
     if (!selectedFile || !selectedProjectId) return
@@ -565,6 +592,7 @@ export default function App() {
                   <span className="font-mono text-text-secondary truncate">{selectedFile.path.split(/[\\/]/).pop()}</span>
                   <span className="text-text-muted text-[10px]">{shortenPath(selectedFile.path)}</span>
                   {isDirty && <span className="text-yellow-500 text-[10px]">● 未保存</span>}
+                  {diskUpdated && <span className="text-yellow-500 text-[10px]">⚠ 磁盘已更新</span>}
                   <span className="text-text-muted text-[10px]">| {editingContent.split('\n').length} lines · {new Blob([editingContent]).size.toLocaleString()} bytes · {formatTokens(Math.ceil(editingContent.length / 4))}</span>
                 </div>
                 <div className="flex items-center gap-2 shrink-0" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
@@ -582,7 +610,7 @@ export default function App() {
                   )}
                 </div>
               </div>
-              <CodeMirrorEditor value={editingContent} onChange={(v) => { setEditingContent(v); setIsDirty(true) }} />
+              <CodeMirrorEditor value={editingContent} onChange={(v) => { setEditingContent(v); setIsDirty(v !== originalContentRef.current) }} />
             </div>
           ) : selectedSession ? (
             <div className="flex-1 flex flex-col min-h-0">
@@ -623,6 +651,7 @@ function CodeMirrorEditor({ value, onChange, readOnly }: { value: string; onChan
   const containerRef = useRef<HTMLDivElement>(null)
   const viewRef = useRef<EditorView | null>(null)
   const onChangeRef = useRef(onChange)
+  const externalUpdateRef = useRef(false)
   const isLightRef = useRef(document.documentElement.classList.contains('light'))
   onChangeRef.current = onChange
 
@@ -666,7 +695,8 @@ function CodeMirrorEditor({ value, onChange, readOnly }: { value: string; onChan
         }, { dark: false })] : []),
         ...(readOnly ? [EditorView.editable.of(false)] : []),
         EditorView.updateListener.of((update) => {
-          if (update.docChanged) onChangeRef.current(update.state.doc.toString())
+          if (update.docChanged && !externalUpdateRef.current) onChangeRef.current(update.state.doc.toString())
+          externalUpdateRef.current = false
         }),
       ],
     })
@@ -679,6 +709,7 @@ function CodeMirrorEditor({ value, onChange, readOnly }: { value: string; onChan
     if (!view) return
     const current = view.state.doc.toString()
     if (current !== value) {
+      externalUpdateRef.current = true
       view.dispatch({ changes: { from: 0, to: current.length, insert: value } })
     }
   }, [value])
