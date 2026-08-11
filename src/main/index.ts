@@ -16,6 +16,7 @@ import { totalmem } from 'os';
 import { join } from 'path';
 
 import { initializeIpcHandlers, removeIpcHandlers } from './ipc/handlers';
+import { getProjectsBasePath, getTodosBasePath } from './utils/pathDecoder';
 import {
   configManager,
   configManagerPromise,
@@ -24,7 +25,6 @@ import {
   ServiceContext,
   ServiceContextRegistry,
 } from './services';
-import { getProjectsBasePath, getTodosBasePath } from './utils/pathDecoder';
 
 const totalMB = Math.floor(totalmem() / (1024 * 1024));
 const heapMB = Math.min(4096, Math.max(2048, Math.floor(totalMB * 0.5)));

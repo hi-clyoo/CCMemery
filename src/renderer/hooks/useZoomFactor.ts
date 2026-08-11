@@ -13,8 +13,8 @@ export function useZoomFactor(): number {
 
   useEffect(() => {
     if (!isElectronMode()) return;
-    void window.electronAPI!.getZoomFactor().then(setZoomFactor).catch(() => {});
-    return window.electronAPI!.onZoomFactorChanged(setZoomFactor);
+    void window.electronAPI.getZoomFactor().then(setZoomFactor).catch(() => {});
+    return window.electronAPI.onZoomFactorChanged(setZoomFactor);
   }, []);
 
   return zoomFactor;

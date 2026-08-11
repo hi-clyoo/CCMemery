@@ -1,9 +1,7 @@
-import { createLogger } from '@shared/utils/logger';
 import { ipcMain } from 'electron';
 
 import { initializeConfigHandlers, registerConfigHandlers, removeConfigHandlers } from './config';
 import { initializeContextHandlers, registerContextHandlers, removeContextHandlers } from './context';
-const logger = createLogger('IPC:handlers');
 import { initializeMemoryHandlers, registerMemoryHandlers, removeMemoryHandlers } from './memory';
 import { registerNotificationHandlers, removeNotificationHandlers } from './notifications';
 import { initializeProjectHandlers, registerProjectHandlers, removeProjectHandlers } from './projects';

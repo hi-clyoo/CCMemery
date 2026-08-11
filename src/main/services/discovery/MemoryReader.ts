@@ -19,9 +19,9 @@ import { LocalFileSystemProvider } from '@main/services/infrastructure/LocalFile
 import { extractBaseDir, getProjectsBasePath } from '@main/utils/pathDecoder';
 import { createLogger } from '@shared/utils/logger';
 import { type MemoryIndex, parseMemoryIndex } from '@shared/utils/memoryIndex';
-import * as path from 'path';
-import { writeFile, unlink, mkdir } from 'fs/promises';
 import { existsSync } from 'fs';
+import { mkdir,unlink, writeFile } from 'fs/promises';
+import * as path from 'path';
 
 import type { FileSystemProvider } from '@main/services/infrastructure/FileSystemProvider';
 

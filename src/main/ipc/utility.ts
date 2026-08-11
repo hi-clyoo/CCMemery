@@ -11,15 +11,17 @@
 import { createLogger } from '@shared/utils/logger';
 import { app, type IpcMain, type IpcMainInvokeEvent, shell } from 'electron';
 import * as fs from 'fs';
+import { dirname } from 'path';
 
 import { type ClaudeMdFileInfo, readAgentConfigs, readAllClaudeMdFiles, readDirectoryClaudeMd } from '../services';
 
 import type { AgentConfig } from '@shared/types/api';
 
 const logger = createLogger('IPC:utility');
+import { homedir } from 'os';
+
 import { validateFilePath, validateOpenPath } from '../utils/pathValidation';
 import { countTokens } from '../utils/tokenizer';
-import { homedir } from 'os';
 
 /**
  * Registers all utility-related IPC handlers.
@@ -292,8 +294,8 @@ async function handleWriteFileByPath(
   try {
     const safe = isPathSafe(absolutePath);
     if (!safe) return { success: false, error: 'Path not allowed' };
-    const dir = require('path').dirname(absolutePath);
-    if (!require('fs').existsSync(dir)) {
+    const dir = dirname(absolutePath);
+    if (!fs.existsSync(dir)) {
       await fs.promises.mkdir(dir, { recursive: true });
     }
     await fs.promises.writeFile(absolutePath, content, 'utf-8');
@@ -311,7 +313,7 @@ function isPathSafe(p: string): boolean {
   if (normalized.startsWith('/')) return true;
   // Allow Program Files (for Managed CLAUDE.md from Claude Code installation)
   if (process.platform === 'win32') {
-    const progFiles = (process.env['ProgramFiles'] || 'C:/Program Files').replace(/\\/g, '/');
+    const progFiles = (process.env.ProgramFiles || 'C:/Program Files').replace(/\\/g, '/');
     if (normalized.startsWith(progFiles)) return true;
     const progFilesX86 = (process.env['ProgramFiles(x86)'] || '').replace(/\\/g, '/');
     if (progFilesX86 && normalized.startsWith(progFilesX86)) return true;
@@ -334,7 +336,7 @@ async function handleGetManagedClaudePath(): Promise<string | null> {
   if (platform === 'win32') {
     candidates.push('C:/Program Files/ClaudeCode/CLAUDE.md');
     // Also check localized Program Files
-    const prog = process.env['ProgramFiles'];
+    const prog = process.env.ProgramFiles;
     if (prog) candidates.push(`${prog.replace(/\\/g, '/')}/ClaudeCode/CLAUDE.md`);
   } else if (platform === 'darwin') {
     candidates.push('/Applications/ClaudeCode.app/Contents/Resources/CLAUDE.md');

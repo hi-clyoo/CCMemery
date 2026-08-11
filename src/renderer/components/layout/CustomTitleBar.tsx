@@ -10,7 +10,7 @@ import { useEffect, useState } from 'react';
 import { isElectronMode } from '@renderer/api';
 import { useTheme } from '@renderer/hooks/useTheme';
 import iconUrl from '@renderer/icon.svg';
-import { Minus, Square, X, Sun, Moon } from 'lucide-react';
+import { Minus, Moon,Square, Sun, X } from 'lucide-react';
 
 const TITLE_BAR_HEIGHT = 32;
 

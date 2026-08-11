@@ -1,17 +1,19 @@
-import { useEffect, useState, useCallback, useRef } from 'react'
-import { EditorView, lineNumbers } from '@codemirror/view'
-import { EditorState } from '@codemirror/state'
+import { useCallback, useEffect, useRef,useState } from 'react'
+
 import { markdown } from '@codemirror/lang-markdown'
-import { syntaxHighlighting, defaultHighlightStyle } from '@codemirror/language'
+import { defaultHighlightStyle,syntaxHighlighting } from '@codemirror/language'
+import { EditorState } from '@codemirror/state'
 import { oneDark } from '@codemirror/theme-one-dark'
+import { EditorView, lineNumbers } from '@codemirror/view'
 import { getTrafficLightPaddingForZoom } from '@shared/constants'
-import type { MemoryIndex } from '@shared/types/api'
-import type { Project, Session } from '@shared/types'
-import { Sun, Moon } from 'lucide-react'
-import { isElectronMode } from './api'
+import { Moon,Sun } from 'lucide-react'
+
 import { CustomTitleBar } from './components/layout/CustomTitleBar'
-import { useZoomFactor } from './hooks/useZoomFactor'
 import { useTheme } from './hooks/useTheme'
+import { useZoomFactor } from './hooks/useZoomFactor'
+import { isElectronMode } from './api'
+
+import type { Project, Session } from '@shared/types'
 
 // ============================================================
 // Types & Constants
@@ -124,7 +126,7 @@ function formatTokens(tokens: number): string {
 }
 
 function shortenPath(p: string): string {
-  const m = p.match(/^([A-Za-z]:\\[Uu]sers\\[^\\]+)/)
+  const m = /^([A-Za-z]:\\[Uu]sers\\[^\\]+)/.exec(p)
   return m ? '~' + p.slice(m[0].length) : p
 }
 
@@ -134,7 +136,7 @@ function shortenPath(p: string): string {
  */
 function projectTitle(proj: Project): string {
   const p = (proj.path || proj.name).replace(/\\/g, '/')
-  const wtMatch = p.match(/\.claude\/worktrees\/(.+)$/)
+  const wtMatch = /\.claude\/worktrees\/(.+)$/.exec(p)
   if (wtMatch) {
     const repoPath = p.slice(0, p.indexOf('/.claude/worktrees/'))
     const repoName = repoPath.split('/').pop() || repoPath
@@ -148,7 +150,7 @@ function projectTitle(proj: Project): string {
 // ============================================================
 // App
 // ============================================================
-export default function App() {
+const App: React.FC = () => {
   const [projects, setProjects] = useState<Project[]>([])
   const [expandedProject, setExpandedProject] = useState<string | null>(null)
   const [sessions, setSessions] = useState<Session[]>([])
@@ -232,24 +234,14 @@ export default function App() {
     })()
   }, [])
 
-  useEffect(() => {
-    const unsub = window.electronAPI.memory.onChanged(({ projectId }) => {
-      if (projectId === selectedProjectId) loadAllFiles(selectedProjectId, selectedProjectPath)
-    })
-    return unsub
-  }, [selectedProjectId, selectedProjectPath])
-
   // Detect disk changes when window regains focus
   useEffect(() => {
     const onFocus = async () => {
       if (!selectedFile) return
       try {
-        let r: { success: boolean; content?: string; error?: string } = { success: false }
-        if (selectedFile.type === 'AutoMem') {
-          r = await window.electronAPI.memory.readFile(selectedProjectId!, selectedFile.path.split(/[\\/]/).pop()!)
-        } else {
-          r = await window.electronAPI.readFileByPath(selectedFile.path)
-        }
+        const r = selectedFile.type === 'AutoMem'
+          ? await window.electronAPI.memory.readFile(selectedProjectId!, selectedFile.path.split(/[\\/]/).pop()!)
+          : await window.electronAPI.readFileByPath(selectedFile.path)
         if (r.success && r.content !== undefined && r.content !== editingContent) {
           setDiskUpdated(true)
         }
@@ -288,6 +280,7 @@ export default function App() {
     catch { setSessions([]) }
   }, [])
 
+  // eslint-disable-next-line react-hooks/preserve-manual-memoization -- React Compiler is not used; manual memoization is intentional
   const loadAllFiles = useCallback(async (projectId: string, projectPath: string) => {
     setLoadingFiles(true)
 
@@ -296,7 +289,7 @@ export default function App() {
 
     // 1. Project CLAUDE.md files
     const np = projectPath.replace(/\\/g, '/')
-    const candidates: Array<{ path: string; type: string }> = [
+    const candidates: { path: string; type: string }[] = [
       { path: np + '/CLAUDE.md', type: 'Project' },
       { path: np + '/.claude/CLAUDE.md', type: 'Project' },
       { path: np + '/CLAUDE.local.md', type: 'Local' },
@@ -329,15 +322,22 @@ export default function App() {
       }
     } catch { /* */ }
 
-    const groups: FileGroup[] = PROJECT_GROUP_DEFS.map(g => ({
+    const nextGroups: FileGroup[] = PROJECT_GROUP_DEFS.map(g => ({
       ...g,
       files: fileMap.get(g.type) || [],
       expanded: (fileMap.get(g.type) || []).length > 0,
     }))
 
-    setGroups(groups)
+    setGroups(nextGroups)
     setLoadingFiles(false)
   }, [])
+
+  useEffect(() => {
+    const unsub = window.electronAPI.memory.onChanged(({ projectId }) => {
+      if (projectId === selectedProjectId) void loadAllFiles(selectedProjectId, selectedProjectPath)
+    })
+    return unsub
+  }, [selectedProjectId, selectedProjectPath, loadAllFiles])
 
   const handleArrowClick = useCallback((e: React.MouseEvent, projectId: string) => {
     e.stopPropagation()
@@ -345,7 +345,7 @@ export default function App() {
       setExpandedProject(null)
     } else {
       setExpandedProject(projectId)
-      loadSessions(projectId)
+      void loadSessions(projectId)
     }
   }, [expandedProject, loadSessions])
 
@@ -358,7 +358,7 @@ export default function App() {
     setIsDirty(false)
     setSelectedSession(null)
     setJsonlContent('')
-    loadAllFiles(proj.id, proj.path || proj.name)
+    void loadAllFiles(proj.id, proj.path || proj.name)
   }, [loadAllFiles])
 
   const handleSessionClick = useCallback(async (session: Session, projectId: string) => {
@@ -402,28 +402,34 @@ export default function App() {
       originalContentRef.current = editingContent
       setIsDirty(false)
       setDiskUpdated(false)
-      if (selectedProjectId) loadAllFiles(selectedProjectId, selectedProjectPath)
+      if (selectedProjectId) void loadAllFiles(selectedProjectId, selectedProjectPath)
     } catch { /* */ }
     finally { setIsSaving(false) }
   }, [selectedFile, editingContent, selectedProjectId, selectedProjectPath, loadAllFiles, diskUpdated])
 
   const handleDelete = useCallback(async () => {
     if (!selectedFile || !selectedProjectId) return
-    if (!confirm(lang === 'zh' ? `删除 "${selectedFile.path.split(/[\\/]/).pop()}"？` : `Delete "${selectedFile.path.split(/[\\/]/).pop()}"?`)) return
+    const fname = selectedFile.path.split(/[\\/]/).pop() ?? selectedFile.path
+    if (!confirm(lang === 'zh' ? `删除 "${fname}"？` : `Delete "${fname}"?`)) return
     if (selectedFile.type === 'AutoMem') {
       const fileName = selectedFile.path.split(/[\\/]/).pop() || selectedFile.path
       await window.electronAPI.memory.deleteFile(selectedProjectId, fileName)
     }
     setSelectedFile(null); setEditingContent(''); setIsDirty(false)
-    loadAllFiles(selectedProjectId, selectedProjectPath)
-  }, [selectedFile, selectedProjectId, selectedProjectPath, loadAllFiles])
+    void loadAllFiles(selectedProjectId, selectedProjectPath)
+  }, [selectedFile, selectedProjectId, selectedProjectPath, loadAllFiles, lang])
 
   const toggleGroup = useCallback((type: string) => {
     setGroups(prev => prev.map(g => g.type === type ? { ...g, expanded: !g.expanded } : g))
   }, [])
 
+  const toggleGlobalGroup = useCallback((type: string) => {
+    setGlobalGroups(prev => prev.map(g => g.type === type ? { ...g, expanded: !g.expanded } : g))
+  }, [])
+
   const startResize = (col: 'col1' | 'col2') => (e: React.MouseEvent) => {
     e.preventDefault()
+    // eslint-disable-next-line react-hooks/refs -- event handler writes ref on mousedown, not during render
     draggingRef.current = col
     document.body.style.cursor = 'col-resize'
     document.body.style.userSelect = 'none'
@@ -441,7 +447,7 @@ export default function App() {
                 onClick={toggleTheme}
                 title={isLight ? 'Switch to dark' : 'Switch to light'}
                 aria-label="Toggle theme"
-                className="flex items-center justify-center w-6 h-6 rounded border border-border text-text-muted hover:text-text hover:bg-surface-raised transition-colors"
+                className="flex items-center justify-center size-6 rounded border border-border text-text-muted hover:text-text hover:bg-surface-raised transition-colors"
               >
                 {isLight ? <Moon className="size-3.5" /> : <Sun className="size-3.5" />}
               </button>
@@ -538,7 +544,7 @@ export default function App() {
                   return (
                     <div key={group.type}>
                       <div
-                        onClick={() => hasFiles && setGlobalGroups(prev => prev.map(g => g.type === group.type ? { ...g, expanded: !g.expanded } : g))}
+                        onClick={() => hasFiles && toggleGlobalGroup(group.type)}
                         className={`px-3 py-1.5 flex items-center gap-2 text-xs cursor-pointer transition-colors hover:bg-surface-raised ${!hasFiles ? 'opacity-40' : ''}`}
                       >
                         <span className="text-text-muted text-[10px]">{hasFiles ? (group.expanded ? '▼' : '▶') : '  '}</span>
@@ -569,7 +575,7 @@ export default function App() {
               <div className="p-4 text-sm text-text-muted">{t(lang, 'Select a project or Global', '选择一个项目或全局')}</div>
             ) : !selectedProjectId ? null : loadingFiles ? (
               <div className="flex justify-center py-8">
-                <div className="animate-spin w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full" />
+                <div className="animate-spin size-4 border-2 border-blue-500 border-t-transparent rounded-full" />
               </div>
             ) : (
               <div className="py-1">
@@ -636,7 +642,7 @@ export default function App() {
                     当指令冲突时，更具体的文件（本地 &gt; 项目 &gt; 用户）优先。</>
                   ) : (
                     <>All CLAUDE.md files are <span className="text-text">merged together</span> when Claude starts.
-                    No file "overrides" another — all content is visible in context.
+                    No file &quot;overrides&quot; another — all content is visible in context.
                     When instructions conflict, more specific files (Local &gt; Project &gt; User) take precedence.</>
                   )}
                 </p>
@@ -727,7 +733,7 @@ export default function App() {
               </div>
               {loadingJsonl ? (
                 <div className="flex-1 flex items-center justify-center">
-                  <div className="animate-spin w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full" />
+                  <div className="animate-spin size-4 border-2 border-blue-500 border-t-transparent rounded-full" />
                 </div>
               ) : jsonlContent ? (
                 <CodeMirrorEditor value={jsonlContent} onChange={() => {}} readOnly />
@@ -749,20 +755,57 @@ export default function App() {
   )
 }
 
+export default App
+
 // ============================================================
 // CodeMirror 6 Editor
 // ============================================================
-function CodeMirrorEditor({ value, onChange, readOnly }: { value: string; onChange: (v: string) => void; readOnly?: boolean }) {
+const CodeMirrorEditor = ({ value, onChange, readOnly }: { value: string; onChange: (v: string) => void; readOnly?: boolean }) => {
   const containerRef = useRef<HTMLDivElement>(null)
   const viewRef = useRef<EditorView | null>(null)
   const onChangeRef = useRef(onChange)
   const externalUpdateRef = useRef(false)
   const isLightRef = useRef(document.documentElement.classList.contains('light'))
-  onChangeRef.current = onChange
+
+  useEffect(() => { onChangeRef.current = onChange }, [onChange])
 
   useEffect(() => {
     const container = containerRef.current
     if (!container) return
+
+    const createView = (target: HTMLDivElement) => {
+      const isLight = isLightRef.current
+      const fillTheme = EditorView.theme({
+        '&': { height: '100%' },
+        '.cm-scroller': { overflowY: 'auto' },
+      })
+      const state = EditorState.create({
+        doc: value,
+        extensions: [
+          fillTheme,
+          markdown(),
+          ...(isLight ? [] : [oneDark]),
+          lineNumbers(),
+          EditorView.lineWrapping,
+          ...(isLight ? [syntaxHighlighting(defaultHighlightStyle), EditorView.theme({
+            '&': { backgroundColor: 'var(--color-surface)' },
+            '.cm-gutters': { backgroundColor: 'var(--color-surface-raised)', color: 'var(--color-text-muted)', borderRight: '1px solid var(--color-border)' },
+            '.cm-activeLineGutter': { backgroundColor: 'var(--color-surface-raised)' },
+            '.cm-activeLine': { backgroundColor: 'rgba(0,0,0,0.04)' },
+            '.cm-cursor': { borderLeftColor: 'var(--color-text)' },
+            '.cm-selectionBackground': { backgroundColor: 'rgba(0,0,0,0.1)' },
+            '&.cm-focused .cm-selectionBackground': { backgroundColor: 'rgba(0,0,0,0.15)' },
+          }, { dark: false })] : []),
+          ...(readOnly ? [EditorView.editable.of(false)] : []),
+          EditorView.updateListener.of((update) => {
+            if (update.docChanged && !externalUpdateRef.current) onChangeRef.current(update.state.doc.toString())
+            externalUpdateRef.current = false
+          }),
+        ],
+      })
+      const view = new EditorView({ state, parent: target })
+      viewRef.current = view
+    }
 
     // Recreate when theme changes (detected via DOM observer on <html> class)
     const observer = new MutationObserver(() => {
@@ -778,43 +821,7 @@ function CodeMirrorEditor({ value, onChange, readOnly }: { value: string; onChan
 
     createView(container)
     return () => { observer.disconnect(); viewRef.current?.destroy(); viewRef.current = null }
-  }, [])
-
-  function createView(container: HTMLDivElement) {
-    const isLight = isLightRef.current
-    // Constrain the editor to its container height; without this, .cm-editor
-    // grows to the full document height and the page becomes unscrollable.
-    const fillTheme = EditorView.theme({
-      '&': { height: '100%' },
-      '.cm-scroller': { overflowY: 'auto' },
-    })
-    const state = EditorState.create({
-      doc: value,
-      extensions: [
-        fillTheme,
-        markdown(),
-        ...(isLight ? [] : [oneDark]),
-        lineNumbers(),
-        EditorView.lineWrapping,
-        ...(isLight ? [syntaxHighlighting(defaultHighlightStyle), EditorView.theme({
-          '&': { backgroundColor: 'var(--color-surface)' },
-          '.cm-gutters': { backgroundColor: 'var(--color-surface-raised)', color: 'var(--color-text-muted)', borderRight: '1px solid var(--color-border)' },
-          '.cm-activeLineGutter': { backgroundColor: 'var(--color-surface-raised)' },
-          '.cm-activeLine': { backgroundColor: 'rgba(0,0,0,0.04)' },
-          '.cm-cursor': { borderLeftColor: 'var(--color-text)' },
-          '.cm-selectionBackground': { backgroundColor: 'rgba(0,0,0,0.1)' },
-          '&.cm-focused .cm-selectionBackground': { backgroundColor: 'rgba(0,0,0,0.15)' },
-        }, { dark: false })] : []),
-        ...(readOnly ? [EditorView.editable.of(false)] : []),
-        EditorView.updateListener.of((update) => {
-          if (update.docChanged && !externalUpdateRef.current) onChangeRef.current(update.state.doc.toString())
-          externalUpdateRef.current = false
-        }),
-      ],
-    })
-    const view = new EditorView({ state, parent: container })
-    viewRef.current = view
-  }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps -- mount-only; value/readOnly changes are handled by the sync effect below
 
   useEffect(() => {
     const view = viewRef.current
