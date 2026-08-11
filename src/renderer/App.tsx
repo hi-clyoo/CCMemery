@@ -7,9 +7,11 @@ import { oneDark } from '@codemirror/theme-one-dark'
 import { getTrafficLightPaddingForZoom } from '@shared/constants'
 import type { MemoryIndex } from '@shared/types/api'
 import type { Project, Session } from '@shared/types'
+import { Sun, Moon } from 'lucide-react'
 import { isElectronMode } from './api'
 import { CustomTitleBar } from './components/layout/CustomTitleBar'
 import { useZoomFactor } from './hooks/useZoomFactor'
+import { useTheme } from './hooks/useTheme'
 
 // ============================================================
 // Types & Constants
@@ -24,6 +26,10 @@ interface FileGroup {
   desc: string
   path: string
   priority: string
+  labelZh: string
+  descZh: string
+  pathZh: string
+  priorityZh: string
   files: MemFile[]
   expanded: boolean
 }
@@ -34,12 +40,20 @@ const GLOBAL_GROUP_DEFS = [
     desc: 'System-level mandatory rules from Claude Code installation. Automatically loaded for every session — always in effect.',
     path: '<install>/CLAUDE.md  (e.g., C:\\Program Files\\ClaudeCode\\CLAUDE.md)',
     priority: 'Always loaded — applies to all projects',
+    labelZh: '系统管理',
+    descZh: '来自 Claude Code 安装的系统级强制规则。每个会话都会自动加载——始终生效。',
+    pathZh: '<install>/CLAUDE.md  （例如 C:\\Program Files\\ClaudeCode\\CLAUDE.md）',
+    priorityZh: '始终加载——适用于所有项目',
   },
   {
     type: 'User', label: 'User', icon: '👤', color: '#3B82F6',
     desc: 'Your personal global instructions (via /config). Loaded for ALL projects. Merged with project-specific rules below.',
     path: '~/.claude/CLAUDE.md',
     priority: 'Always loaded — applies globally',
+    labelZh: '用户',
+    descZh: '你的个人全局指令（通过 /config 配置）。对所有项目加载，并与下面的项目级规则合并。',
+    pathZh: '~/.claude/CLAUDE.md',
+    priorityZh: '始终加载——全局生效',
   },
 ]
 
@@ -49,22 +63,59 @@ const PROJECT_GROUP_DEFS = [
     desc: 'Project-level instructions, checked into git — shared with your team. Also loaded from .claude/ subdirectories.',
     path: './CLAUDE.md  /  .claude/CLAUDE.md',
     priority: 'Loaded per-project — adds to User rules',
+    labelZh: '项目',
+    descZh: '项目级指令，已纳入 git 版本控制——与团队共享。也会从 .claude/ 子目录加载。',
+    pathZh: './CLAUDE.md  /  .claude/CLAUDE.md',
+    priorityZh: '按项目加载——叠加在用户规则之上',
   },
   {
     type: 'Local', label: 'Local', icon: '🔒', color: '#22C55E',
     desc: 'Local-only additions, NEVER checked into git. Use for personal project tweaks. Takes precedence on conflicts.',
     path: './CLAUDE.local.md',
     priority: 'Loaded per-project — takes precedence on conflicts',
+    labelZh: '本地',
+    descZh: '仅本地的补充，绝不会纳入 git 版本控制。用于个人项目调整，冲突时优先。',
+    pathZh: './CLAUDE.local.md',
+    priorityZh: '按项目加载——冲突时优先',
   },
   {
     type: 'AutoMem', label: 'Memory', icon: '🧠', color: '#EC4899',
     desc: 'Auto-generated memory from conversations. Managed by Claude via MEMORY.md index. Project-scoped.',
     path: '~/.claude/projects/<proj>/memory/',
     priority: 'Loaded alongside rules (separate channel)',
+    labelZh: '记忆',
+    descZh: '从对话中自动生成的记忆，由 Claude 通过 MEMORY.md 索引管理，作用于项目范围。',
+    pathZh: '~/.claude/projects/<proj>/memory/',
+    priorityZh: '与规则同时加载（独立通道）',
   },
 ]
 
 const GROUP_DEFS = [...GLOBAL_GROUP_DEFS, ...PROJECT_GROUP_DEFS]
+
+// ------------------------------------------------------------
+// Lightweight i18n (en / zh)
+// ------------------------------------------------------------
+type Lang = 'en' | 'zh'
+const LANG_KEY = 'cc-memory-lang'
+function loadLang(): Lang {
+  try { return localStorage.getItem(LANG_KEY) === 'zh' ? 'zh' : 'en' } catch { return 'en' }
+}
+function saveLang(l: Lang): void {
+  try { localStorage.setItem(LANG_KEY, l) } catch { /* */ }
+}
+/** Localize a group definition's display fields. */
+function localizeGroup(
+  g: { label: string; desc: string; path: string; priority: string; labelZh: string; descZh: string; pathZh: string; priorityZh: string },
+  lang: Lang
+): { label: string; desc: string; path: string; priority: string } {
+  return lang === 'zh'
+    ? { label: g.labelZh, desc: g.descZh, path: g.pathZh, priority: g.priorityZh }
+    : { label: g.label, desc: g.desc, path: g.path, priority: g.priority }
+}
+/** Localize a plain UI string. */
+function t(lang: Lang, en: string, zh: string): string {
+  return lang === 'zh' ? zh : en
+}
 
 function formatTokens(tokens: number): string {
   if (!tokens) return ''
@@ -125,11 +176,22 @@ export default function App() {
   const draggingRef = useRef<'col1' | 'col2' | null>(null)
   const columnsRef = useRef<HTMLDivElement>(null)
 
+  // Language preference (persisted to localStorage)
+  const [lang, setLang] = useState<Lang>(() => loadLang())
+  const toggleLang = useCallback(() => {
+    setLang(prev => {
+      const next: Lang = prev === 'zh' ? 'en' : 'zh'
+      saveLang(next)
+      return next
+    })
+  }, [])
+
   // macOS hidden title bar: reserve space for the native traffic lights.
   // Windows/Linux use CustomTitleBar instead, so no left padding needed there.
   const zoomFactor = useZoomFactor()
   const isMac = /Mac/i.test(navigator.userAgent)
   const trafficLightPadding = isElectronMode() && isMac ? getTrafficLightPaddingForZoom(zoomFactor) : 0
+  const { isLight, toggleTheme } = useTheme()
 
   // Dismiss splash
   useEffect(() => {
@@ -342,7 +404,7 @@ export default function App() {
 
   const handleDelete = useCallback(async () => {
     if (!selectedFile || !selectedProjectId) return
-    if (!confirm(`Delete "${selectedFile.path.split(/[\\/]/).pop()}"?`)) return
+    if (!confirm(lang === 'zh' ? `删除 "${selectedFile.path.split(/[\\/]/).pop()}"？` : `Delete "${selectedFile.path.split(/[\\/]/).pop()}"?`)) return
     if (selectedFile.type === 'AutoMem') {
       const fileName = selectedFile.path.split(/[\\/]/).pop() || selectedFile.path
       await window.electronAPI.memory.deleteFile(selectedProjectId, fileName)
@@ -368,8 +430,24 @@ export default function App() {
       <div ref={columnsRef} className="flex flex-1 min-h-0">
         {/* Column 1: Project Tree + Sessions */}
         <div style={{ width: col1Width, minWidth: 160 }} className="shrink-0 bg-surface-sidebar border-border flex flex-col">
-          <div className="p-3 border-b border-border" style={{ WebkitAppRegion: 'drag', paddingLeft: trafficLightPadding } as React.CSSProperties}>
-            <h1 className="text-sm font-semibold text-text-secondary">Claude Code Sessions</h1>
+          <div className="p-3 border-b border-border flex items-center justify-end gap-2" style={{ WebkitAppRegion: 'drag', paddingLeft: trafficLightPadding } as React.CSSProperties}>
+            <div className="flex items-center gap-1.5 shrink-0" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
+              <button
+                onClick={toggleTheme}
+                title={isLight ? 'Switch to dark' : 'Switch to light'}
+                aria-label="Toggle theme"
+                className="flex items-center justify-center w-6 h-6 rounded border border-border text-text-muted hover:text-text hover:bg-surface-raised transition-colors"
+              >
+                {isLight ? <Moon className="size-3.5" /> : <Sun className="size-3.5" />}
+              </button>
+              <button
+                onClick={toggleLang}
+                title={lang === 'zh' ? 'Switch to English' : '切换为中文'}
+                className="text-[10px] px-1.5 py-0.5 rounded border border-border text-text-muted hover:text-text hover:bg-surface-raised transition-colors"
+              >
+                {lang === 'zh' ? 'EN' : '中文'}
+              </button>
+            </div>
           </div>
           <div className="flex-1 overflow-y-auto">
             {/* Global CLAUDE.md — special folder at top */}
@@ -383,7 +461,7 @@ export default function App() {
                 >
                   <span className="text-xs text-text-muted">{globalSelected ? '▼' : '▶'}</span>
                   <span className="text-xs">🌐</span>
-                  <span className="text-text-secondary font-medium truncate flex-1">Global</span>
+                  <span className="text-text-secondary font-medium truncate flex-1">{t(lang, 'Global', '全局')}</span>
                   <span className="text-xs text-text-muted">{globalGroups.reduce((n, g) => n + g.files.length, 0)}</span>
                 </div>
                 <div className="mx-3 border-t border-border" />
@@ -428,7 +506,7 @@ export default function App() {
                 showAbout ? 'bg-blue-600/20 text-blue-400' : 'text-text-muted hover:text-text hover:bg-surface-raised'
               }`}
             >
-              {showAbout ? '✕ Close' : 'ℹ About — Loading Rules'}
+              {showAbout ? t(lang, '✕ Close', '✕ 关闭') : t(lang, 'ℹ About — Loading Rules', 'ℹ 关于 — 加载规则')}
             </button>
           </div>
         </div>
@@ -443,7 +521,7 @@ export default function App() {
         <div style={{ width: col2Width, minWidth: 160 }} className="shrink-0 bg-surface-sidebar/50 border-r border-border flex flex-col">
           <div className="p-3 border-b border-border" style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}>
             <h2 className="text-sm font-medium text-text-secondary">
-              {selectedProjectPath ? selectedProjectPath.split(/[\\/]/).pop() : 'Files'}
+              {selectedProjectPath ? selectedProjectPath.split(/[\\/]/).pop() : t(lang, 'Files', '文件')}
             </h2>
           </div>
           <div className="flex-1 overflow-y-auto">
@@ -460,7 +538,7 @@ export default function App() {
                       >
                         <span className="text-text-muted text-[10px]">{hasFiles ? (group.expanded ? '▼' : '▶') : '  '}</span>
                         <span>{group.icon}</span>
-                        <span style={{ color: group.color }} className="font-semibold uppercase tracking-wide">{group.label}</span>
+                        <span style={{ color: group.color }} className="font-semibold uppercase tracking-wide">{localizeGroup(group, lang).label}</span>
                         <span className="text-text-muted ml-auto">{group.files.length}</span>
                       </div>
                       {group.expanded && group.files.map((f) => (
@@ -483,7 +561,7 @@ export default function App() {
 
             {/* Project-specific files */}
             {!selectedProjectId && !globalSelected ? (
-              <div className="p-4 text-sm text-text-muted">Select a project or Global</div>
+              <div className="p-4 text-sm text-text-muted">{t(lang, 'Select a project or Global', '选择一个项目或全局')}</div>
             ) : !selectedProjectId ? null : loadingFiles ? (
               <div className="flex justify-center py-8">
                 <div className="animate-spin w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full" />
@@ -505,7 +583,7 @@ export default function App() {
                         </span>
                         <span>{group.icon}</span>
                         <span style={{ color: group.color }} className="font-semibold uppercase tracking-wide">
-                          {group.label}
+                          {localizeGroup(group, lang).label}
                         </span>
                         <span className="text-text-muted ml-auto">{group.files.length}</span>
                       </div>
@@ -545,25 +623,34 @@ export default function App() {
           {showAbout ? (
             <div className="flex-1 overflow-y-auto p-6">
               <div className="max-w-xl mx-auto space-y-5">
-                <h2 className="text-sm font-semibold text-text">Loading Rules</h2>
+                <h2 className="text-sm font-semibold text-text">{t(lang, 'Loading Rules', '加载规则')}</h2>
                 <p className="text-xs text-text-secondary leading-relaxed">
-                  All CLAUDE.md files are <span className="text-text">merged together</span> when Claude starts.
-                  No file "overrides" another — all content is visible in context.
-                  When instructions conflict, more specific files (Local &gt; Project &gt; User) take precedence.
+                  {lang === 'zh' ? (
+                    <>所有 CLAUDE.md 文件在 Claude 启动时都会<span className="text-text">合并在一起</span>加载。
+                    没有哪个文件会“覆盖”另一个文件——所有内容都会进入上下文。
+                    当指令冲突时，更具体的文件（本地 &gt; 项目 &gt; 用户）优先。</>
+                  ) : (
+                    <>All CLAUDE.md files are <span className="text-text">merged together</span> when Claude starts.
+                    No file "overrides" another — all content is visible in context.
+                    When instructions conflict, more specific files (Local &gt; Project &gt; User) take precedence.</>
+                  )}
                 </p>
-                {GROUP_DEFS.map((g) => (
-                  <div key={g.type} className="bg-surface-sidebar rounded border border-border p-4">
-                    <div className="flex items-center gap-2 mb-2">
-                      <span className="text-base">{g.icon}</span>
-                      <span style={{ color: g.color }} className="text-sm font-semibold uppercase tracking-wide">{g.label}</span>
+                {GROUP_DEFS.map((g) => {
+                  const loc = localizeGroup(g, lang)
+                  return (
+                    <div key={g.type} className="bg-surface-sidebar rounded border border-border p-4">
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className="text-base">{g.icon}</span>
+                        <span style={{ color: g.color }} className="text-sm font-semibold uppercase tracking-wide">{loc.label}</span>
+                      </div>
+                      <p className="text-xs text-text-secondary leading-relaxed mb-1">{loc.desc}</p>
+                      <p className="text-[10px] text-text-muted font-mono mb-0.5">{loc.path}</p>
+                      <p className="text-[10px] text-text-muted">{loc.priority}</p>
                     </div>
-                    <p className="text-xs text-text-secondary leading-relaxed mb-1">{g.desc}</p>
-                    <p className="text-[10px] text-text-muted font-mono mb-0.5">{g.path}</p>
-                    <p className="text-[10px] text-text-muted">{g.priority}</p>
-                  </div>
-                ))}
+                  )
+                })}
                 <div className="text-[10px] text-text-muted pt-2 border-t border-border">
-                  <p>CC Memory — Claude Code memory file manager</p>
+                  <p>{t(lang, 'CC Memory — Claude Code memory file manager', 'CC Memory — Claude Code 记忆文件管理器')}</p>
                 </div>
               </div>
             </div>
@@ -573,6 +660,7 @@ export default function App() {
               {(() => {
                 const def = GROUP_DEFS.find(g => g.type === selectedFile.type)
                 if (!def) return null
+                const loc = localizeGroup(def, lang)
                 return (
                   <div className="border-b border-border">
                     <div
@@ -581,14 +669,14 @@ export default function App() {
                     >
                       <span className="text-[10px] text-text-muted">{rulesExpanded ? '▼' : '▶'}</span>
                       <span>{def.icon}</span>
-                      <span style={{ color: def.color }} className="text-[10px] font-semibold uppercase tracking-wide">{def.label}</span>
-                      <span className="text-[10px] text-text-muted">— {def.desc.slice(0, 60)}…</span>
+                      <span style={{ color: def.color }} className="text-[10px] font-semibold uppercase tracking-wide">{loc.label}</span>
+                      <span className="text-[10px] text-text-muted">— {loc.desc.slice(0, 60)}…</span>
                     </div>
                     {rulesExpanded && (
                       <div className="px-4 pb-2 space-y-1">
-                        <p className="text-[10px] text-text-secondary leading-relaxed">{def.desc}</p>
-                        <p className="text-[10px] text-text-muted font-mono">{def.path}</p>
-                        <p className="text-[10px] text-text-muted">{def.priority}</p>
+                        <p className="text-[10px] text-text-secondary leading-relaxed">{loc.desc}</p>
+                        <p className="text-[10px] text-text-muted font-mono">{loc.path}</p>
+                        <p className="text-[10px] text-text-muted">{loc.priority}</p>
                       </div>
                     )}
                   </div>
@@ -638,13 +726,15 @@ export default function App() {
               ) : jsonlContent ? (
                 <CodeMirrorEditor value={jsonlContent} onChange={() => {}} readOnly />
               ) : (
-                <div className="flex-1 flex items-center justify-center text-text-muted text-sm">Failed to load session data</div>
+                <div className="flex-1 flex items-center justify-center text-text-muted text-sm">{t(lang, 'Failed to load session data', '无法加载会话数据')}</div>
               )}
             </div>
           ) : (
             <div className="flex-1 flex items-center justify-center text-text-muted text-sm"
               style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}>
-              {selectedProjectId ? 'Select a file or session to view' : 'Select a project to browse files'}
+              {selectedProjectId
+                ? t(lang, 'Select a file or session to view', '选择一个文件或会话进行查看')
+                : t(lang, 'Select a project to browse files', '选择一个项目以浏览文件')}
             </div>
           )}
         </div>

@@ -8,6 +8,7 @@
 import { useEffect, useState } from 'react';
 
 import { isElectronMode } from '@renderer/api';
+import { useTheme } from '@renderer/hooks/useTheme';
 import iconUrl from '@renderer/icon.svg';
 import { Minus, Square, X, Sun, Moon } from 'lucide-react';
 
@@ -22,17 +23,9 @@ function needsCustomTitleBar(): boolean {
 export const CustomTitleBar = (): React.JSX.Element | null => {
   const [isMaximized, setIsMaximized] = useState(false);
   const [useNativeTitleBar, setUseNativeTitleBar] = useState(false);
-  const [isLight, setIsLight] = useState(() => document.documentElement.classList.contains('light'));
+  const { isLight, toggleTheme } = useTheme();
   const showTitleBar = needsCustomTitleBar() && !useNativeTitleBar;
   const api = typeof window !== 'undefined' ? window.electronAPI?.windowControls : null;
-
-  const toggleTheme = () => {
-    const root = document.documentElement;
-    root.classList.toggle('light');
-    const nowLight = root.classList.contains('light');
-    setIsLight(nowLight);
-    try { localStorage.setItem('claude-devtools-theme-cache', nowLight ? 'light' : 'dark'); } catch { /* */ }
-  };
 
   useEffect(() => {
     if (api) void api.isMaximized().then(setIsMaximized);
