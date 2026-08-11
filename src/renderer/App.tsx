@@ -4,9 +4,12 @@ import { EditorState } from '@codemirror/state'
 import { markdown } from '@codemirror/lang-markdown'
 import { syntaxHighlighting, defaultHighlightStyle } from '@codemirror/language'
 import { oneDark } from '@codemirror/theme-one-dark'
+import { getTrafficLightPaddingForZoom } from '@shared/constants'
 import type { MemoryIndex } from '@shared/types/api'
 import type { Project, Session } from '@shared/types'
+import { isElectronMode } from './api'
 import { CustomTitleBar } from './components/layout/CustomTitleBar'
+import { useZoomFactor } from './hooks/useZoomFactor'
 
 // ============================================================
 // Types & Constants
@@ -121,6 +124,12 @@ export default function App() {
   const col2Ref = useRef(300)
   const draggingRef = useRef<'col1' | 'col2' | null>(null)
   const columnsRef = useRef<HTMLDivElement>(null)
+
+  // macOS hidden title bar: reserve space for the native traffic lights.
+  // Windows/Linux use CustomTitleBar instead, so no left padding needed there.
+  const zoomFactor = useZoomFactor()
+  const isMac = /Mac/i.test(navigator.userAgent)
+  const trafficLightPadding = isElectronMode() && isMac ? getTrafficLightPaddingForZoom(zoomFactor) : 0
 
   // Dismiss splash
   useEffect(() => {
@@ -359,7 +368,7 @@ export default function App() {
       <div ref={columnsRef} className="flex flex-1 min-h-0">
         {/* Column 1: Project Tree + Sessions */}
         <div style={{ width: col1Width, minWidth: 160 }} className="shrink-0 bg-surface-sidebar border-border flex flex-col">
-          <div className="p-3 border-b border-border" style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}>
+          <div className="p-3 border-b border-border" style={{ WebkitAppRegion: 'drag', paddingLeft: trafficLightPadding } as React.CSSProperties}>
             <h1 className="text-sm font-semibold text-text-secondary">Claude Code Sessions</h1>
           </div>
           <div className="flex-1 overflow-y-auto">
