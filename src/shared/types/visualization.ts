@@ -1,5 +1,5 @@
 /**
- * Visualization-specific types for claude-devtools.
+ * Visualization-specific types for CC Memory.
  *
  * These types are used for waterfall chart visualization
  * and are shared between main and renderer processes.

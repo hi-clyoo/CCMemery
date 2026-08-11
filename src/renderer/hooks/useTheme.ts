@@ -12,8 +12,8 @@
 
 import { useCallback, useEffect, useState } from 'react';
 
-export const THEME_STORAGE_KEY = 'claude-devtools-theme-cache';
-export const THEME_CHANGE_EVENT = 'claude-devtools-theme-change';
+export const THEME_STORAGE_KEY = 'cc-memory-theme-cache';
+export const THEME_CHANGE_EVENT = 'cc-memory-theme-change';
 
 function isLightTheme(): boolean {
   return typeof document !== 'undefined' && document.documentElement.classList.contains('light');

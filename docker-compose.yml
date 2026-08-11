@@ -1,5 +1,5 @@
 # =============================================================================
-# claude-devtools — Docker Compose
+# CC Memory — Docker Compose
 #
 # Quick start:
 #   docker compose up
@@ -13,7 +13,7 @@
 # =============================================================================
 
 services:
-  claude-devtools:
+  cc-memory:
     build: .
     ports:
       - "3456:3456"

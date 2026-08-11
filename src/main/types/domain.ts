@@ -1,5 +1,5 @@
 /**
- * Domain/business entity types for claude-devtools.
+ * Domain/business entity types for CC Memory.
  *
  * These types represent the application's domain model:
  * - Projects and sessions

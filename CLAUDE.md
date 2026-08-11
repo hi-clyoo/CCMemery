@@ -1,4 +1,4 @@
-# claude-devtools
+# CC Memory
 
 Electron app that visualizes Claude Code session execution
 

@@ -1,5 +1,5 @@
 /**
- * Notification and configuration types for claude-devtools.
+ * Notification and configuration types for CC Memory.
  *
  * These types define:
  * - Detected errors from session files

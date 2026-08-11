@@ -1,5 +1,5 @@
 ---
-name: claude-devtools:markdown-search
+name: cc-memory:markdown-search
 description: Markdown search logic — how in-session and cross-session search works. Use when working on SearchBar, search highlighting, searchHighlightUtils, markdownTextSearch, or SessionSearcher.
 ---
 

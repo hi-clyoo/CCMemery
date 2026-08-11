@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link rel="icon" type="image/svg+xml" href="./icon.svg" />
-  <title>claude-devtools</title>
+  <title>CC Memory</title>
   <style>
     /* Splash: spotlight gradient + noise overlay */
     #splash {
@@ -48,7 +48,7 @@
     // Flash prevention: Apply cached theme before React loads
     (function() {
       try {
-        var theme = localStorage.getItem('claude-devtools-theme-cache');
+        var theme = localStorage.getItem('cc-memory-theme-cache');
         if (theme === 'light') {
           document.documentElement.classList.add('light');
         }
@@ -77,7 +77,7 @@
       <!-- BL: down-facing semicircle -->
       <path class="splash-q splash-logo-shape" style="animation-delay:2.4s" d="M12,34 A7,7 0 0,0 26,34 Z" fill="#d4d4d8"/>
     </svg>
-    <div id="splash-text">claude-devtools</div>
+    <div id="splash-text">CC Memory</div>
   </div>
   <div id="root"></div>
   <script type="module" src="./main.tsx"></script>

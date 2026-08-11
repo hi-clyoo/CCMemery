@@ -1,10 +1,10 @@
 # Contributing
 
-Thanks for contributing to claude-devtools.
+Thanks for contributing to CC Memory.
 
 ## Project Philosophy & Scope
 
-claude-devtools exists to make the invisible parts of Claude Code visible — the token flows, context injections, tool executions, and session dynamics that are otherwise hidden behind the CLI. It is not a general-purpose dashboard or an IDE.
+CC Memory exists to make the invisible parts of Claude Code visible — the token flows, context injections, tool executions, and session dynamics that are otherwise hidden behind the CLI. It is not a general-purpose dashboard or an IDE.
 
 Our priorities:
 

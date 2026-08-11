@@ -2,7 +2,7 @@
  * NotificationManager service - Manages native macOS notifications and error history.
  *
  * Responsibilities:
- * - Store error history at ~/.claude/claude-devtools-notifications.json (max 100 entries)
+ * - Store error history at ~/.claude/cc-memory-notifications.json (max 100 entries)
  * - Show native macOS notifications using Electron's Notification API
  * - Implement throttling (5 seconds per unique error hash)
  * - Respect config.notifications.enabled and snoozedUntil
@@ -77,7 +77,7 @@ const MAX_NOTIFICATIONS = 100;
 const THROTTLE_MS = 5000;
 
 /** Path to notifications storage file */
-const NOTIFICATIONS_PATH = path.join(os.homedir(), '.claude', 'claude-devtools-notifications.json');
+const NOTIFICATIONS_PATH = path.join(os.homedir(), '.claude', 'cc-memory-notifications.json');
 
 // =============================================================================
 // NotificationManager Class

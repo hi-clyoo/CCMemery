@@ -1,5 +1,5 @@
 ---
-name: claude-devtools:chatgroup-architecture
+name: cc-memory:chatgroup-architecture
 description: ChatGroup architecture — how conversation data flows from raw JSONL to rendered chat groups. Use when working on UserGroup, AIGroup, SystemGroup, display items, tool linking, chunks, or the rendering hierarchy.
 ---
 

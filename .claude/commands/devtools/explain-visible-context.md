@@ -1,5 +1,5 @@
 ---
-name: claude-devtools:explain-visible-context
+name: cc-memory:explain-visible-context
 description: Explains what "Visible Context" is — the 6 trackable token categories, what falls outside tracking, how it's displayed, and why it matters. Use when someone asks about visible context, token attribution, or context window usage.
 ---
 

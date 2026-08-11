@@ -1,5 +1,5 @@
 /**
- * ConfigManager service - Manages app configuration stored at ~/.claude/claude-devtools-config.json.
+ * ConfigManager service - Manages app configuration stored at ~/.claude/cc-memory-config.json.
  *
  * Responsibilities:
  * - Load configuration from disk on initialization
@@ -24,7 +24,7 @@ import type { SshConnectionProfile } from '@shared/types/api';
 const logger = createLogger('Service:ConfigManager');
 
 const CONFIG_DIR = path.join(os.homedir(), '.claude');
-const CONFIG_FILENAME = 'claude-devtools-config.json';
+const CONFIG_FILENAME = 'cc-memory-config.json';
 const DEFAULT_CONFIG_PATH = path.join(CONFIG_DIR, CONFIG_FILENAME);
 
 // ===========================================================================

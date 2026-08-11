@@ -2,7 +2,7 @@
 
 ## Network Activity
 
-claude-devtools makes **zero** outbound network calls to third-party servers. There is no telemetry, analytics, tracking, or data exfiltration of any kind.
+CC Memory makes **zero** outbound network calls to third-party servers. There is no telemetry, analytics, tracking, or data exfiltration of any kind.
 
 | Network activity | When | Mode | User-initiated |
 |---|---|---|---|
@@ -18,7 +18,7 @@ In standalone mode (Docker or `node dist-standalone/index.cjs`), the auto-update
 
 - All session data is read **locally** from `~/.claude/` — it never leaves your machine.
 - The app does not write to session files. Volume mounts in Docker use `:ro` (read-only) by default.
-- Configuration is stored at `~/.claude/claude-devtools-config.json` on the local filesystem.
+- Configuration is stored at `~/.claude/cc-memory-config.json` on the local filesystem.
 - No data is sent to Anthropic, GitHub (other than the auto-updater in Electron mode), or any other third party.
 
 ## Docker Network Isolation
@@ -26,8 +26,8 @@ In standalone mode (Docker or `node dist-standalone/index.cjs`), the auto-update
 For maximum trust, run the Docker container with `--network none`:
 
 ```bash
-docker build -t claude-devtools .
-docker run --network none -p 3456:3456 -v ~/.claude:/data/.claude:ro claude-devtools
+docker build -t cc-memory .
+docker run --network none -p 3456:3456 -v ~/.claude:/data/.claude:ro cc-memory
 ```
 
 Or with Docker Compose, uncomment `network_mode: "none"` in `docker-compose.yml`.
