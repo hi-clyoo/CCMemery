@@ -35,6 +35,21 @@ jobs:
           VERSION="${GITHUB_REF#refs/tags/v}"
           pnpm pkg set version="$VERSION"
 
+      # Re-running a tag re-uses the draft release from the previous run; the
+      # same artifact filenames then collide on re-upload (HTTP 422). Delete the
+      # existing release (keeping the tag) so every run publishes a fresh draft.
+      - name: Delete existing release for this tag
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          RELEASE_TAG="${GITHUB_REF#refs/tags/}"
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            echo "Deleting existing release $RELEASE_TAG"
+            gh release delete "$RELEASE_TAG" --yes
+          else
+            echo "No existing release for $RELEASE_TAG"
+          fi
+
       - name: Build app
         run: pnpm build
 
