@@ -5,7 +5,8 @@
   "description": "Claude Code memory file manager — view, edit and manage CLAUDE.md and memory files",
   "license": "MIT",
   "author": {
-    "name": "clyoo"
+    "name": "clyoo",
+    "email": "hi-clyoo@users.noreply.github.com"
   },
   "homepage": "https://github.com/hi-clyoo/CCMemery",
   "repository": {
