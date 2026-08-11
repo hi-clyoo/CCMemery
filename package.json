@@ -127,7 +127,8 @@
       "artifactName": "${productName}-${version}-${arch}.${ext}",
       "hardenedRuntime": true,
       "gatekeeperAssess": false,
-      "notarize": true,
+      "notarize": false,
+      "identity": null,
       "entitlements": "resources/entitlements.mac.plist",
       "entitlementsInherit": "resources/entitlements.mac.inherit.plist",
       "icon": "resources/icons/mac/icon.icns"

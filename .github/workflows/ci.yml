@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [master, main]
     paths:
       - 'src/**'
       - 'test/**'
@@ -14,7 +14,7 @@ on:
       - 'tailwind.config.*'
       - 'eslint.config.*'
   pull_request:
-    branches: [main]
+    branches: [master, main]
     paths:
       - 'src/**'
       - 'test/**'

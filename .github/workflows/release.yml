@@ -153,7 +153,7 @@ jobs:
             [ -e "$dmg" ] || continue
             expected=$([[ "$dmg" == *"-arm64.dmg" ]] && echo arm64 || echo x86_64)
             mount=$(hdiutil attach "$dmg" -nobrowse -readonly | tail -1 | awk '{print $NF}')
-            bin="$mount/claude-devtools.app/Contents/MacOS/claude-devtools"
+            bin="$mount/CC Memory.app/Contents/MacOS/CC Memory"
             if [ -f "$bin" ]; then
               actual=$(file "$bin")
               echo "$dmg -> $actual"

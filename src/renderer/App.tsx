@@ -185,6 +185,7 @@ export default function App() {
       return next
     })
   }, [])
+  const [appVersion, setAppVersion] = useState('')
 
   // macOS hidden title bar: reserve space for the native traffic lights.
   // Windows/Linux use CustomTitleBar instead, so no left padding needed there.
@@ -201,6 +202,10 @@ export default function App() {
 
   useEffect(() => {
     window.electronAPI.getProjects().then(setProjects).catch(() => setProjects([]))
+  }, [])
+
+  useEffect(() => {
+    window.electronAPI.getAppVersion().then(setAppVersion).catch(() => {})
   }, [])
 
   // Load global CLAUDE.md files (Managed + User) once on mount
@@ -651,6 +656,7 @@ export default function App() {
                 })}
                 <div className="text-[10px] text-text-muted pt-2 border-t border-border">
                   <p>{t(lang, 'CC Memory — Claude Code memory file manager', 'CC Memory — Claude Code 记忆文件管理器')}</p>
+                  {appVersion && <p className="mt-0.5">v{appVersion}</p>}
                 </div>
               </div>
             </div>
