@@ -6,7 +6,7 @@ import { EditorState } from '@codemirror/state'
 import { oneDark } from '@codemirror/theme-one-dark'
 import { EditorView, lineNumbers } from '@codemirror/view'
 import { getTrafficLightPaddingForZoom } from '@shared/constants'
-import { Moon,Sun } from 'lucide-react'
+import { Moon,RefreshCw,Sun } from 'lucide-react'
 
 import { GitStatusIcon } from './components/GitStatusIcon'
 import { CustomTitleBar } from './components/layout/CustomTitleBar'
@@ -192,6 +192,7 @@ const App: React.FC = () => {
   const [globalGroups, setGlobalGroups] = useState<FileGroup[]>([])
   const [linkIndex, setLinkIndex] = useState<LinkIndexResult | null>(null)
   const [gitStatus, setGitStatus] = useState<Record<string, GitFileStatus>>({})
+  const [refreshing, setRefreshing] = useState(false)
   const [col1Width, setCol1Width] = useState(240)
   const [col2Width, setCol2Width] = useState(300)
   const col1Ref = useRef(240)
@@ -218,6 +219,28 @@ const App: React.FC = () => {
   const trafficLightPadding = isElectronMode() && isMac ? getTrafficLightPaddingForZoom(zoomFactor) : 0
   const { isLight, toggleTheme } = useTheme()
 
+  // Reload global CLAUDE.md files (Managed + User). Used on mount and by the refresh button.
+  const loadGlobalGroups = useCallback(async () => {
+    const fileMap = new Map<string, MemFile[]>()
+    for (const g of GLOBAL_GROUP_DEFS) fileMap.set(g.type, [])
+    const homeDir = await window.electronAPI.getHomeDir().catch(() => '')
+    try {
+      const managedPath = await window.electronAPI.getManagedClaudePath()
+      if (managedPath) {
+        const r = await window.electronAPI.readFileByPath(managedPath)
+        if (r.success && r.content) fileMap.get('Managed')!.push({ path: managedPath, type: 'Managed', tokens: Math.ceil(r.content.length / 4), content: r.content })
+      }
+    } catch { /* */ }
+    if (homeDir) {
+      try {
+        const p = homeDir.replace(/\\/g, '/') + '/.claude/CLAUDE.md'
+        const r = await window.electronAPI.readFileByPath(p)
+        if (r.success && r.content) fileMap.get('User')!.push({ path: p, type: 'User', tokens: Math.ceil(r.content.length / 4), content: r.content })
+      } catch { /* */ }
+    }
+    setGlobalGroups(GLOBAL_GROUP_DEFS.map(g => ({ ...g, files: fileMap.get(g.type) || [], expanded: (fileMap.get(g.type) || []).length > 0 })))
+  }, [])
+
   // Dismiss splash
   useEffect(() => {
     const splash = document.getElementById('splash')
@@ -234,27 +257,9 @@ const App: React.FC = () => {
 
   // Load global CLAUDE.md files (Managed + User) once on mount
   useEffect(() => {
-    void (async () => {
-      const fileMap = new Map<string, MemFile[]>()
-      for (const g of GLOBAL_GROUP_DEFS) fileMap.set(g.type, [])
-      const homeDir = await window.electronAPI.getHomeDir().catch(() => '')
-      try {
-        const managedPath = await window.electronAPI.getManagedClaudePath()
-        if (managedPath) {
-          const r = await window.electronAPI.readFileByPath(managedPath)
-          if (r.success && r.content) fileMap.get('Managed')!.push({ path: managedPath, type: 'Managed', tokens: Math.ceil(r.content.length / 4), content: r.content })
-        }
-      } catch { /* */ }
-      if (homeDir) {
-        try {
-          const p = homeDir.replace(/\\/g, '/') + '/.claude/CLAUDE.md'
-          const r = await window.electronAPI.readFileByPath(p)
-          if (r.success && r.content) fileMap.get('User')!.push({ path: p, type: 'User', tokens: Math.ceil(r.content.length / 4), content: r.content })
-        } catch { /* */ }
-      }
-      setGlobalGroups(GLOBAL_GROUP_DEFS.map(g => ({ ...g, files: fileMap.get(g.type) || [], expanded: (fileMap.get(g.type) || []).length > 0 })))
-    })()
-  }, [])
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- async load, deferred setState, mount-only
+    void loadGlobalGroups()
+  }, [loadGlobalGroups])
 
   // Keep a ref of global file paths so loadAllFiles can include them in the git-status query.
   useEffect(() => {
@@ -388,6 +393,24 @@ const App: React.FC = () => {
     setLoadingFiles(false)
   }, [])
 
+  // Manual refresh: reload projects, global files, sessions, and the selected project's files.
+  const handleRefresh = useCallback(async () => {
+    setRefreshing(true)
+    try {
+      try {
+        const projs = await window.electronAPI.getProjects()
+        setProjects(projs || [])
+      } catch { /* */ }
+      await loadGlobalGroups()
+      const tasks: Promise<void>[] = []
+      if (expandedProject) tasks.push(loadSessions(expandedProject))
+      if (selectedProjectId) tasks.push(loadAllFiles(selectedProjectId, selectedProjectPath))
+      await Promise.all(tasks)
+    } finally {
+      setRefreshing(false)
+    }
+  }, [expandedProject, selectedProjectId, selectedProjectPath, loadSessions, loadAllFiles, loadGlobalGroups])
+
   useEffect(() => {
     const unsub = window.electronAPI.memory.onChanged(({ projectId }) => {
       if (projectId === selectedProjectId) void loadAllFiles(selectedProjectId, selectedProjectPath)
@@ -507,11 +530,11 @@ const App: React.FC = () => {
     } catch { /* */ }
   }, [globalGroups, groups, handleSelectFile])
 
-  /** Renders file rows for a group. The Index group is additionally grouped by directory. */
+  /** Renders file rows for a group. The Index group groups files by their source (索引来源) and shows the directory on each row. */
   const renderGroupFiles = (group: FileGroup) => {
-    const row = (f: MemFile) => (
+    const row = (f: MemFile, rowKey?: string, dirLabel?: string) => (
       <div
-        key={f.path}
+        key={rowKey ?? f.path}
         onClick={() => void handleSelectFile(f)}
         className={`pl-10 pr-3 py-1.5 cursor-pointer text-xs transition-colors flex items-center gap-2 ${
           selectedFile?.path === f.path
@@ -521,29 +544,47 @@ const App: React.FC = () => {
       >
         <span className="text-text-muted shrink-0">📄</span>
         <GitStatusIcon status={gitStatus[f.path]} lang={lang} />
-        <span className="font-mono truncate">{f.path.split(/[\\/]/).pop()}</span>
+        <span className="font-mono truncate">
+          {dirLabel ? `${dirLabel}/` : ''}
+          {f.path.split(/[\\/]/).pop()}
+        </span>
         {f.tokens > 0 && (
           <span className="text-text-muted shrink-0 ml-auto">{formatTokens(f.tokens)}</span>
         )}
       </div>
     )
-    if (group.type !== 'Index') return group.files.map(row)
-    const byDir = new Map<string, MemFile[]>()
+    if (group.type !== 'Index') return group.files.map(f => row(f))
+
+    // Index group: group files by the referencing source (来源), directory goes on each row.
+    const pairs: { sourcePath: string; sourceName: string; file: MemFile }[] = []
     for (const f of group.files) {
-      const dir = f.dir || ''
-      const arr = byDir.get(dir) ?? []
-      arr.push(f)
-      byDir.set(dir, arr)
+      const sources = f.sources && f.sources.length > 0 ? f.sources : [{ path: '', fileName: t(lang, '(unknown source)', '来源未知') }]
+      for (const s of sources) pairs.push({ sourcePath: s.path, sourceName: s.fileName, file: f })
     }
-    const dirs = [...byDir.keys()].sort((a, b) => a.localeCompare(b))
-    return dirs.map(dir => (
-      <div key={dir}>
-        <div className="pl-8 pr-3 py-1 text-[10px] text-text-muted font-mono truncate">
-          {shortenDir(dir, selectedProjectPath)}
+    const bySource = new Map<string, { sourceName: string; files: MemFile[] }>()
+    for (const p of pairs) {
+      const entry = bySource.get(p.sourcePath)
+      if (entry) entry.files.push(p.file)
+      else bySource.set(p.sourcePath, { sourceName: p.sourceName, files: [p.file] })
+    }
+    const sourcePaths = [...bySource.keys()].sort((a, b) => a.localeCompare(b))
+    return sourcePaths.map(sourcePath => {
+      const entry = bySource.get(sourcePath)
+      if (!entry) return null
+      const { sourceName, files } = entry
+      return (
+        <div key={sourcePath}>
+          <div className="pl-8 pr-3 py-1 text-[10px] text-text-muted font-mono truncate" title={sourcePath || undefined}>
+            {sourceName}
+          </div>
+          {files.map(f => {
+            const d = f.dir ? shortenDir(f.dir, selectedProjectPath) : ''
+            const dirLabel = d === '/' ? '' : d
+            return row(f, `${sourcePath}:${f.path}`, dirLabel)
+          })}
         </div>
-        {(byDir.get(dir) ?? []).map(row)}
-      </div>
-    ))
+      )
+    })
   }
 
   const toggleGroup = useCallback((type: string) => {
@@ -575,6 +616,14 @@ const App: React.FC = () => {
         <div style={{ width: col1Width, minWidth: 160 }} className="shrink-0 bg-surface-sidebar border-border flex flex-col">
           <div className="p-3 border-b border-border flex items-center justify-end gap-2" style={{ WebkitAppRegion: 'drag', paddingLeft: trafficLightPadding } as React.CSSProperties}>
             <div className="flex items-center gap-1.5 shrink-0" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
+              <button
+                onClick={() => void handleRefresh()}
+                title={lang === 'zh' ? '刷新（重新加载项目 / 会话 / 文件）' : 'Refresh (reload projects, sessions, files)'}
+                aria-label="Refresh"
+                className="flex items-center justify-center size-6 rounded border border-border text-text-muted hover:text-text hover:bg-surface-raised transition-colors"
+              >
+                <RefreshCw className={`size-3.5 ${refreshing ? 'animate-spin' : ''}`} />
+              </button>
               <button
                 onClick={toggleTheme}
                 title={isLight ? 'Switch to dark' : 'Switch to light'}
