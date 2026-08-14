@@ -28,6 +28,9 @@
   --highlight-text-inactive: #fef08a;
   --highlight-ring: #facc15;
 
+  /* CodeMirror line highlight (jump-back from Index) */
+  --color-line-highlight: rgba(59, 130, 246, 0.18);
+
   /* User chat bubble - Soft Charcoal theme (softer text for visual hierarchy) */
   --chat-user-bg: #27272a;
   --chat-user-text: #a1a1aa;
@@ -217,6 +220,9 @@
   --highlight-text: #1c1917;
   --highlight-text-inactive: #422006;
   --highlight-ring: #ca8a04;
+
+  /* CodeMirror line highlight (jump-back from Index) */
+  --color-line-highlight: rgba(59, 130, 246, 0.22);
 
   /* User chat bubble - Warm neutral, clearly visible */
   --chat-user-bg: #eae9e6;
@@ -551,4 +557,9 @@ body.theme-transitioning {
     rgba(0, 0, 0, 0.04) 60%,
     transparent 100%
   );
+}
+
+/* Highlighted line in the CodeMirror editor (jump-back from Index) */
+.cm-editor .cm-lineHighlight {
+  background-color: var(--color-line-highlight);
 }

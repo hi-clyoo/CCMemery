@@ -2,9 +2,9 @@ import { useCallback, useEffect, useRef,useState } from 'react'
 
 import { markdown } from '@codemirror/lang-markdown'
 import { defaultHighlightStyle,syntaxHighlighting } from '@codemirror/language'
-import { EditorState } from '@codemirror/state'
+import { EditorState, StateEffect, StateField } from '@codemirror/state'
 import { oneDark } from '@codemirror/theme-one-dark'
-import { EditorView, lineNumbers } from '@codemirror/view'
+import { Decoration, EditorView, lineNumbers } from '@codemirror/view'
 import { getTrafficLightPaddingForZoom } from '@shared/constants'
 import { Moon,RefreshCw,Sun } from 'lucide-react'
 
@@ -111,7 +111,7 @@ const GROUP_DEFS = [...GLOBAL_GROUP_DEFS, ...PROJECT_GROUP_DEFS]
 type Lang = 'en' | 'zh'
 const LANG_KEY = 'cc-memory-lang'
 function loadLang(): Lang {
-  try { return localStorage.getItem(LANG_KEY) === 'zh' ? 'zh' : 'en' } catch { return 'en' }
+  try { return localStorage.getItem(LANG_KEY) === 'en' ? 'en' : 'zh' } catch { return 'zh' }
 }
 function saveLang(l: Lang): void {
   try { localStorage.setItem(LANG_KEY, l) } catch { /* */ }
@@ -193,6 +193,7 @@ const App: React.FC = () => {
   const [linkIndex, setLinkIndex] = useState<LinkIndexResult | null>(null)
   const [gitStatus, setGitStatus] = useState<Record<string, GitFileStatus>>({})
   const [refreshing, setRefreshing] = useState(false)
+  const [highlightLine, setHighlightLine] = useState<number | null>(null)
   const [col1Width, setCol1Width] = useState(240)
   const [col2Width, setCol2Width] = useState(300)
   const col1Ref = useRef(240)
@@ -429,6 +430,7 @@ const App: React.FC = () => {
   }, [expandedProject, loadSessions])
 
   const handleProjectClick = useCallback((proj: Project) => {
+    setShowAbout(false)
     setGlobalSelected(false)
     setSelectedProjectId(proj.id)
     setSelectedProjectPath(proj.path || proj.name)
@@ -443,6 +445,7 @@ const App: React.FC = () => {
   }, [loadAllFiles])
 
   const handleSessionClick = useCallback(async (session: Session, projectId: string) => {
+    setShowAbout(false)
     setSelectedSession(session)
     setSelectedFile(null)
     setEditingContent('')
@@ -460,7 +463,7 @@ const App: React.FC = () => {
     finally { setLoadingJsonl(false) }
   }, [])
 
-  const handleSelectFile = useCallback(async (f: MemFile) => {
+  const handleSelectFile = useCallback(async (f: MemFile, line?: number | null) => {
     let content = f.content
     if (content === undefined) {
       try {
@@ -470,10 +473,12 @@ const App: React.FC = () => {
     }
     const resolved = content ?? ''
     originalContentRef.current = resolved
+    setShowAbout(false)
     setSelectedFile(f)
     setEditingContent(resolved)
     setIsDirty(false)
     setDiskUpdated(false)
+    setHighlightLine(typeof line === 'number' && line >= 1 ? line : null)
   }, [])
 
   const handleSave = useCallback(async () => {
@@ -508,12 +513,12 @@ const App: React.FC = () => {
   }, [selectedFile, selectedProjectId, selectedProjectPath, loadAllFiles, lang])
 
   /** Opens a file by absolute path (used by backlink chips) — finds it in the loaded groups, else fetches content. */
-  const openFile = useCallback(async (filePath: string) => {
+  const openFile = useCallback(async (filePath: string, line?: number | null) => {
     const allGroups = [...globalGroups, ...groups]
     for (const g of allGroups) {
       const found = g.files.find(x => x.path === filePath)
       if (found) {
-        await handleSelectFile(found)
+        await handleSelectFile(found, line)
         return
       }
     }
@@ -525,7 +530,7 @@ const App: React.FC = () => {
           type: 'Index',
           tokens: r.content ? Math.ceil(r.content.length / 4) : 0,
           content: r.content,
-        })
+        }, line)
       }
     } catch { /* */ }
   }, [globalGroups, groups, handleSelectFile])
@@ -646,7 +651,7 @@ const App: React.FC = () => {
             {globalGroups.some(g => g.files.length > 0) && (
               <>
                 <div
-                  onClick={() => { setGlobalSelected(!globalSelected); setSelectedProjectId(null); setSelectedFile(null); setSelectedSession(null); setLinkIndex(null); setGitStatus({}) }}
+                  onClick={() => { setShowAbout(false); setGlobalSelected(!globalSelected); setSelectedProjectId(null); setSelectedFile(null); setSelectedSession(null); setLinkIndex(null); setGitStatus({}) }}
                   className={`px-3 py-2 text-sm flex items-center gap-2 cursor-pointer transition-colors hover:bg-surface-raised ${
                     globalSelected ? 'bg-blue-600/10' : ''
                   }`}
@@ -861,10 +866,11 @@ const App: React.FC = () => {
                             {selectedFileSources.map(s => (
                               <button
                                 key={s.path}
-                                onClick={() => void openFile(s.path)}
+                                onClick={() => void openFile(s.path, s.line)}
+                                title={lang === 'zh' ? (s.line ? `跳转到第 ${s.line} 行` : '跳转到文件') : (s.line ? `Jump to line ${s.line}` : 'Jump to file')}
                                 className="text-[10px] px-1.5 py-0.5 rounded border border-border text-blue-400 hover:bg-surface-raised hover:text-blue-300 transition-colors"
                               >
-                                {s.fileName}
+                                {s.fileName}{s.line ? `:${s.line}` : ''}
                               </button>
                             ))}
                           </div>
@@ -900,7 +906,7 @@ const App: React.FC = () => {
                   )}
                 </div>
               </div>
-              <CodeMirrorEditor value={editingContent} onChange={(v) => { setEditingContent(v); setIsDirty(v !== originalContentRef.current) }} />
+              <CodeMirrorEditor value={editingContent} onChange={(v) => { setEditingContent(v); setIsDirty(v !== originalContentRef.current) }} highlightLine={highlightLine} />
             </div>
           ) : selectedSession ? (
             <div className="flex-1 flex flex-col min-h-0">
@@ -941,7 +947,29 @@ export default App
 // ============================================================
 // CodeMirror 6 Editor
 // ============================================================
-const CodeMirrorEditor = ({ value, onChange, readOnly }: { value: string; onChange: (v: string) => void; readOnly?: boolean }) => {
+
+// Line-highlight support: used when jumping back to a source file from the Index.
+// The effect carries a 1-based line number; the field resolves it to a concrete
+// range at dispatch time and keeps it mapped as the document changes.
+const setHighlightLine = StateEffect.define<number | null>()
+const highlightLineField = StateField.define<{ from: number; to: number } | null>({
+  create: () => null,
+  update(value, tr) {
+    for (const e of tr.effects) {
+      if (!e.is(setHighlightLine)) continue
+      const lineNo = e.value
+      if (lineNo == null) return null
+      const line = tr.state.doc.line(Math.min(Math.max(1, lineNo), tr.state.doc.lines))
+      return { from: line.from, to: line.to }
+    }
+    return value
+  },
+  provide: f => EditorView.decorations.from(f, hl =>
+    hl ? Decoration.set([Decoration.line({ class: 'cm-lineHighlight' }).range(hl.from)]) : Decoration.none
+  ),
+})
+
+const CodeMirrorEditor = ({ value, onChange, readOnly, highlightLine }: { value: string; onChange: (v: string) => void; readOnly?: boolean; highlightLine?: number | null }) => {
   const containerRef = useRef<HTMLDivElement>(null)
   const viewRef = useRef<EditorView | null>(null)
   const onChangeRef = useRef(onChange)
@@ -968,6 +996,7 @@ const CodeMirrorEditor = ({ value, onChange, readOnly }: { value: string; onChan
           ...(isLight ? [] : [oneDark]),
           lineNumbers(),
           EditorView.lineWrapping,
+          highlightLineField,
           ...(isLight ? [syntaxHighlighting(defaultHighlightStyle), EditorView.theme({
             '&': { backgroundColor: 'var(--color-surface)' },
             '.cm-gutters': { backgroundColor: 'var(--color-surface-raised)', color: 'var(--color-text-muted)', borderRight: '1px solid var(--color-border)' },
@@ -1013,6 +1042,21 @@ const CodeMirrorEditor = ({ value, onChange, readOnly }: { value: string; onChan
       view.dispatch({ changes: { from: 0, to: current.length, insert: value } })
     }
   }, [value])
+
+  // Scroll to and highlight a target line (jump-back from Index).
+  useEffect(() => {
+    const view = viewRef.current
+    if (!view) return
+    if (typeof highlightLine === 'number' && highlightLine >= 1) {
+      const line = view.state.doc.line(Math.min(highlightLine, view.state.doc.lines))
+      view.dispatch({
+        selection: { anchor: line.from },
+        effects: [EditorView.scrollIntoView(line.from, { y: 'center' }), setHighlightLine.of(highlightLine)],
+      })
+    } else {
+      view.dispatch({ effects: setHighlightLine.of(null) })
+    }
+  }, [highlightLine])
 
   return <div ref={containerRef} className="flex-1 min-h-0 overflow-hidden" />
 }

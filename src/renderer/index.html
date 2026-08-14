@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -45,11 +45,12 @@
     :root.light .splash-logo-shape { fill: #52525b; }
   </style>
   <script>
-    // Flash prevention: Apply cached theme before React loads
+    // Flash prevention: Apply cached theme before React loads.
+    // Default is light; only an explicit 'dark' cache opts into dark.
     (function() {
       try {
         var theme = localStorage.getItem('cc-memory-theme-cache');
-        if (theme === 'light') {
+        if (theme !== 'dark') {
           document.documentElement.classList.add('light');
         }
       } catch(e) {}
