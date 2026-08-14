@@ -4,7 +4,7 @@ Claude Code 记忆文件管理器 —— 可视化查看、编辑和管理 Claud
 
 > **CC Memory** is a desktop app for viewing, editing and managing Claude Code's memory files (`CLAUDE.md` & Memory) across all your projects.
 
-![version](https://img.shields.io/badge/version-v0.1.0-blue)
+![version](https://img.shields.io/badge/version-v0.2.0-blue)
 ![license](https://img.shields.io/badge/license-MIT-green)
 ![platform](https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20%7C%20Linux-lightgrey)
 ![CI](https://img.shields.io/github/actions/workflow/status/hi-clyoo/CCMemery/ci.yml?branch=master&label=CI)
@@ -49,10 +49,10 @@ CC Memory 是一个 Electron 桌面应用，让你用可视化的方式管理 Cl
 
 | 平台 | 安装包 |
 |---|---|
-| macOS · Apple Silicon | `CC-Memory-0.1.0-arm64.dmg` |
-| macOS · Intel | `CC-Memory-0.1.0-x64.dmg` |
-| Windows | `CC-Memory-Setup-0.1.0-x64.exe` |
-| Linux | `CC-Memory-0.1.0-x86_64.AppImage` / `.deb` / `.rpm` |
+| macOS · Apple Silicon | `CC-Memory-0.2.0-arm64.dmg` |
+| macOS · Intel | `CC-Memory-0.2.0-x64.dmg` |
+| Windows | `CC-Memory-Setup-0.2.0-x64.exe` |
+| Linux | `CC-Memory-0.2.0-x86_64.AppImage` / `.deb` / `.rpm` |
 
 > **Download:** Get the latest installer from [GitHub Releases](https://github.com/hi-clyoo/CCMemery/releases/latest).
 
@@ -74,8 +74,8 @@ pnpm test             # 运行测试
 推送 `v*` 标签即可自动构建并发布三平台安装包（GitHub Actions）：
 
 ```bash
-git tag v0.1.0
-git push origin v0.1.0
+git tag v0.2.0
+git push origin v0.2.0
 ```
 
 CI 会自动构建 macOS（arm64 + x64）、Windows、Linux 的安装包，并创建一个 **draft Release**，供你核对后转正式发布。

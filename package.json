@@ -1,7 +1,7 @@
 {
   "name": "cc-memory",
   "type": "module",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Claude Code memory file manager — view, edit and manage CLAUDE.md and memory files",
   "license": "MIT",
   "author": {
