@@ -17,6 +17,7 @@ import {
   MEMORY_CREATE_FILE,
   MEMORY_DELETE_FILE,
   MEMORY_GET_INDEX,
+  MEMORY_GET_LINK_INDEX,
   MEMORY_HAS_MEMORY,
   MEMORY_LIST_OPENERS,
   MEMORY_OPEN_IN,
@@ -76,6 +77,7 @@ import type {
   CreateFileResult,
   ElectronAPI,
   HttpServerStatus,
+  LinkIndexResult,
   MemoryIndex,
   MemoryOpenResult,
   MemoryReadFileResult,
@@ -511,6 +513,8 @@ const electronAPI: ElectronAPI = {
       ipcRenderer.invoke(MEMORY_HAS_MEMORY, projectId) as Promise<boolean>,
     getIndex: (projectId: string): Promise<MemoryIndex | null> =>
       ipcRenderer.invoke(MEMORY_GET_INDEX, projectId) as Promise<MemoryIndex | null>,
+    getLinkIndex: (projectId: string, projectPath: string, paths: string[]): Promise<LinkIndexResult | null> =>
+      ipcRenderer.invoke(MEMORY_GET_LINK_INDEX, projectId, projectPath, paths) as Promise<LinkIndexResult | null>,
     readFile: (projectId: string, fileName: string): Promise<MemoryReadFileResult> =>
       ipcRenderer.invoke(MEMORY_READ_FILE, projectId, fileName) as Promise<MemoryReadFileResult>,
     listAvailableOpeners: (): Promise<OpenTarget[]> =>

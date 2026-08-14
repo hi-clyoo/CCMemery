@@ -8,17 +8,18 @@ import { EditorView, lineNumbers } from '@codemirror/view'
 import { getTrafficLightPaddingForZoom } from '@shared/constants'
 import { Moon,Sun } from 'lucide-react'
 
+import { GitStatusIcon } from './components/GitStatusIcon'
 import { CustomTitleBar } from './components/layout/CustomTitleBar'
 import { useTheme } from './hooks/useTheme'
 import { useZoomFactor } from './hooks/useZoomFactor'
 import { isElectronMode } from './api'
 
-import type { Project, Session } from '@shared/types'
+import type { GitFileStatus, IndexSourceRef, LinkIndexResult, Project, Session } from '@shared/types'
 
 // ============================================================
 // Types & Constants
 // ============================================================
-interface MemFile { path: string; type: string; tokens: number; content?: string }
+interface MemFile { path: string; type: string; tokens: number; content?: string; dir?: string; sources?: IndexSourceRef[] }
 
 interface FileGroup {
   type: string
@@ -90,6 +91,16 @@ const PROJECT_GROUP_DEFS = [
     pathZh: '~/.claude/projects/<proj>/memory/',
     priorityZh: '与规则同时加载（独立通道）',
   },
+  {
+    type: 'Index', label: 'Index', icon: '🔗', color: '#06B6D4',
+    desc: 'Markdown files linked from CLAUDE.md files, grouped by directory. The backlink ("indexed by") is shown at the top of each file.',
+    path: 'files linked from CLAUDE.md',
+    priority: 'Reverse index — grouped by directory',
+    labelZh: '索引',
+    descZh: '被 CLAUDE.md 链接引用的 Markdown 文件，按目录分组。每个文件顶部会显示它的索引来源。',
+    pathZh: '由 CLAUDE.md 链接引用的文件',
+    priorityZh: '反向索引——按目录分组',
+  },
 ]
 
 const GROUP_DEFS = [...GLOBAL_GROUP_DEFS, ...PROJECT_GROUP_DEFS]
@@ -128,6 +139,14 @@ function formatTokens(tokens: number): string {
 function shortenPath(p: string): string {
   const m = /^([A-Za-z]:\\[Uu]sers\\[^\\]+)/.exec(p)
   return m ? '~' + p.slice(m[0].length) : p
+}
+
+/** Directory display: relative to the project path when inside it, else ~-shortened. */
+function shortenDir(dir: string, projectPath: string): string {
+  const np = projectPath.replace(/\\/g, '/')
+  const d = dir.replace(/\\/g, '/')
+  if (d.startsWith(np)) return d.slice(np.length).replace(/^\/+/, '') || '/'
+  return shortenPath(d)
 }
 
 /**
@@ -171,12 +190,15 @@ const App: React.FC = () => {
   const [rulesExpanded, setRulesExpanded] = useState(true)
   const [globalSelected, setGlobalSelected] = useState(false)
   const [globalGroups, setGlobalGroups] = useState<FileGroup[]>([])
+  const [linkIndex, setLinkIndex] = useState<LinkIndexResult | null>(null)
+  const [gitStatus, setGitStatus] = useState<Record<string, GitFileStatus>>({})
   const [col1Width, setCol1Width] = useState(240)
   const [col2Width, setCol2Width] = useState(300)
   const col1Ref = useRef(240)
   const col2Ref = useRef(300)
   const draggingRef = useRef<'col1' | 'col2' | null>(null)
   const columnsRef = useRef<HTMLDivElement>(null)
+  const globalFilesRef = useRef<MemFile[]>([])
 
   // Language preference (persisted to localStorage)
   const [lang, setLang] = useState<Lang>(() => loadLang())
@@ -234,6 +256,11 @@ const App: React.FC = () => {
     })()
   }, [])
 
+  // Keep a ref of global file paths so loadAllFiles can include them in the git-status query.
+  useEffect(() => {
+    globalFilesRef.current = globalGroups.flatMap(g => g.files)
+  }, [globalGroups])
+
   // Detect disk changes when window regains focus
   useEffect(() => {
     const onFocus = async () => {
@@ -280,7 +307,6 @@ const App: React.FC = () => {
     catch { setSessions([]) }
   }, [])
 
-  // eslint-disable-next-line react-hooks/preserve-manual-memoization -- React Compiler is not used; manual memoization is intentional
   const loadAllFiles = useCallback(async (projectId: string, projectPath: string) => {
     setLoadingFiles(true)
 
@@ -322,6 +348,36 @@ const App: React.FC = () => {
       }
     } catch { /* */ }
 
+    // 3. Reverse index (files linked from CLAUDE.md / MEMORY.md) + git status
+    const allPaths = globalFilesRef.current.map(f => f.path)
+    for (const [, arr] of fileMap) for (const f of arr) allPaths.push(f.path)
+    let linkResult: LinkIndexResult | null = null
+    try {
+      linkResult = await window.electronAPI.memory.getLinkIndex(projectId, projectPath, allPaths)
+    } catch { /* */ }
+    setGitStatus(linkResult?.git ?? {})
+    setLinkIndex(linkResult)
+
+    if (linkResult && linkResult.files.length > 0) {
+      const indexedFiles: MemFile[] = []
+      for (const f of linkResult.files) {
+        let content: string | undefined
+        try {
+          const r = await window.electronAPI.readFileByPath(f.path)
+          if (r.success) content = r.content
+        } catch { /* */ }
+        indexedFiles.push({
+          path: f.path,
+          type: 'Index',
+          tokens: content ? Math.ceil(content.length / 4) : 0,
+          content,
+          dir: f.dir,
+          sources: f.sources,
+        })
+      }
+      fileMap.set('Index', indexedFiles)
+    }
+
     const nextGroups: FileGroup[] = PROJECT_GROUP_DEFS.map(g => ({
       ...g,
       files: fileMap.get(g.type) || [],
@@ -358,6 +414,8 @@ const App: React.FC = () => {
     setIsDirty(false)
     setSelectedSession(null)
     setJsonlContent('')
+    setLinkIndex(null)
+    setGitStatus({})
     void loadAllFiles(proj.id, proj.path || proj.name)
   }, [loadAllFiles])
 
@@ -379,11 +437,18 @@ const App: React.FC = () => {
     finally { setLoadingJsonl(false) }
   }, [])
 
-  const handleSelectFile = useCallback((f: MemFile) => {
-    const content = f.content || ''
-    originalContentRef.current = content
+  const handleSelectFile = useCallback(async (f: MemFile) => {
+    let content = f.content
+    if (content === undefined) {
+      try {
+        const r = await window.electronAPI.readFileByPath(f.path)
+        if (r.success) content = r.content
+      } catch { /* */ }
+    }
+    const resolved = content ?? ''
+    originalContentRef.current = resolved
     setSelectedFile(f)
-    setEditingContent(content)
+    setEditingContent(resolved)
     setIsDirty(false)
     setDiskUpdated(false)
   }, [])
@@ -419,6 +484,68 @@ const App: React.FC = () => {
     void loadAllFiles(selectedProjectId, selectedProjectPath)
   }, [selectedFile, selectedProjectId, selectedProjectPath, loadAllFiles, lang])
 
+  /** Opens a file by absolute path (used by backlink chips) — finds it in the loaded groups, else fetches content. */
+  const openFile = useCallback(async (filePath: string) => {
+    const allGroups = [...globalGroups, ...groups]
+    for (const g of allGroups) {
+      const found = g.files.find(x => x.path === filePath)
+      if (found) {
+        await handleSelectFile(found)
+        return
+      }
+    }
+    try {
+      const r = await window.electronAPI.readFileByPath(filePath)
+      if (r.success) {
+        await handleSelectFile({
+          path: filePath,
+          type: 'Index',
+          tokens: r.content ? Math.ceil(r.content.length / 4) : 0,
+          content: r.content,
+        })
+      }
+    } catch { /* */ }
+  }, [globalGroups, groups, handleSelectFile])
+
+  /** Renders file rows for a group. The Index group is additionally grouped by directory. */
+  const renderGroupFiles = (group: FileGroup) => {
+    const row = (f: MemFile) => (
+      <div
+        key={f.path}
+        onClick={() => void handleSelectFile(f)}
+        className={`pl-10 pr-3 py-1.5 cursor-pointer text-xs transition-colors flex items-center gap-2 ${
+          selectedFile?.path === f.path
+            ? 'text-blue-400 bg-blue-600/10 border-r-2 border-blue-500'
+            : 'text-text-secondary hover:bg-surface-raised/70 hover:text-text'
+        }`}
+      >
+        <span className="text-text-muted shrink-0">📄</span>
+        <GitStatusIcon status={gitStatus[f.path]} lang={lang} />
+        <span className="font-mono truncate">{f.path.split(/[\\/]/).pop()}</span>
+        {f.tokens > 0 && (
+          <span className="text-text-muted shrink-0 ml-auto">{formatTokens(f.tokens)}</span>
+        )}
+      </div>
+    )
+    if (group.type !== 'Index') return group.files.map(row)
+    const byDir = new Map<string, MemFile[]>()
+    for (const f of group.files) {
+      const dir = f.dir || ''
+      const arr = byDir.get(dir) ?? []
+      arr.push(f)
+      byDir.set(dir, arr)
+    }
+    const dirs = [...byDir.keys()].sort((a, b) => a.localeCompare(b))
+    return dirs.map(dir => (
+      <div key={dir}>
+        <div className="pl-8 pr-3 py-1 text-[10px] text-text-muted font-mono truncate">
+          {shortenDir(dir, selectedProjectPath)}
+        </div>
+        {(byDir.get(dir) ?? []).map(row)}
+      </div>
+    ))
+  }
+
   const toggleGroup = useCallback((type: string) => {
     setGroups(prev => prev.map(g => g.type === type ? { ...g, expanded: !g.expanded } : g))
   }, [])
@@ -434,6 +561,11 @@ const App: React.FC = () => {
     document.body.style.cursor = 'col-resize'
     document.body.style.userSelect = 'none'
   }
+
+  // Files that index the currently open file (backlinks), for the "索引来源" row.
+  const selectedFileSources = selectedFile
+    ? (linkIndex?.files.find(f => f.path === selectedFile.path)?.sources ?? [])
+    : []
 
   return (
     <div className="flex flex-col h-screen bg-surface text-text">
@@ -465,7 +597,7 @@ const App: React.FC = () => {
             {globalGroups.some(g => g.files.length > 0) && (
               <>
                 <div
-                  onClick={() => { setGlobalSelected(!globalSelected); setSelectedProjectId(null); setSelectedFile(null); setSelectedSession(null) }}
+                  onClick={() => { setGlobalSelected(!globalSelected); setSelectedProjectId(null); setSelectedFile(null); setSelectedSession(null); setLinkIndex(null); setGitStatus({}) }}
                   className={`px-3 py-2 text-sm flex items-center gap-2 cursor-pointer transition-colors hover:bg-surface-raised ${
                     globalSelected ? 'bg-blue-600/10' : ''
                   }`}
@@ -553,13 +685,14 @@ const App: React.FC = () => {
                         <span className="text-text-muted ml-auto">{group.files.length}</span>
                       </div>
                       {group.expanded && group.files.map((f) => (
-                        <div key={f.path} onClick={() => handleSelectFile(f)}
+                        <div key={f.path} onClick={() => void handleSelectFile(f)}
                           className={`pl-10 pr-3 py-1.5 cursor-pointer text-xs transition-colors flex items-center gap-2 ${
                             selectedFile?.path === f.path ? 'text-blue-400 bg-blue-600/10 border-r-2 border-blue-500'
                               : 'text-text-secondary hover:bg-surface-raised hover:text-text'
                           }`}
                         >
                           <span className="text-text-muted shrink-0">📄</span>
+                          <GitStatusIcon status={gitStatus[f.path]} lang={lang} />
                           <span className="font-mono truncate">{f.path.split(/[\\/]/).pop()}</span>
                           {f.tokens > 0 && <span className="text-text-muted shrink-0 ml-auto">{formatTokens(f.tokens)}</span>}
                         </div>
@@ -598,23 +731,7 @@ const App: React.FC = () => {
                         </span>
                         <span className="text-text-muted ml-auto">{group.files.length}</span>
                       </div>
-                      {group.expanded && group.files.map((f) => (
-                        <div
-                          key={f.path}
-                          onClick={() => handleSelectFile(f)}
-                          className={`pl-10 pr-3 py-1.5 cursor-pointer text-xs transition-colors flex items-center gap-2 ${
-                            selectedFile?.path === f.path
-                              ? 'text-blue-400 bg-blue-600/10 border-r-2 border-blue-500'
-                              : 'text-text-secondary hover:bg-surface-raised/70 hover:text-text'
-                          }`}
-                        >
-                          <span className="text-text-muted shrink-0">📄</span>
-                          <span className="font-mono truncate">{f.path.split(/[\\/]/).pop()}</span>
-                          {f.tokens > 0 && (
-                            <span className="text-text-muted shrink-0 ml-auto">{formatTokens(f.tokens)}</span>
-                          )}
-                        </div>
-                      ))}
+                      {group.expanded && renderGroupFiles(group)}
                     </div>
                   )
                 })}
@@ -689,6 +806,20 @@ const App: React.FC = () => {
                         <p className="text-[10px] text-text-secondary leading-relaxed">{loc.desc}</p>
                         <p className="text-[10px] text-text-muted font-mono">{loc.path}</p>
                         <p className="text-[10px] text-text-muted">{loc.priority}</p>
+                        {selectedFileSources.length > 0 && (
+                          <div className="flex items-center gap-1 flex-wrap pt-1">
+                            <span className="text-[10px] text-text-muted">🔗 {t(lang, 'Indexed by', '索引来源')}:</span>
+                            {selectedFileSources.map(s => (
+                              <button
+                                key={s.path}
+                                onClick={() => void openFile(s.path)}
+                                className="text-[10px] px-1.5 py-0.5 rounded border border-border text-blue-400 hover:bg-surface-raised hover:text-blue-300 transition-colors"
+                              >
+                                {s.fileName}
+                              </button>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
@@ -699,6 +830,7 @@ const App: React.FC = () => {
                 style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}>
                 <div className="flex min-w-0 items-center gap-2 text-xs">
                   <span className="font-mono text-text-secondary truncate">{selectedFile.path.split(/[\\/]/).pop()}</span>
+                  <GitStatusIcon status={gitStatus[selectedFile.path]} lang={lang} />
                   <span className="text-text-muted text-[10px]">{shortenPath(selectedFile.path)}</span>
                   {isDirty && <span className="text-yellow-500 text-[10px]">● 未保存</span>}
                   {diskUpdated && <span className="text-yellow-500 text-[10px]">⚠ 磁盘已更新</span>}

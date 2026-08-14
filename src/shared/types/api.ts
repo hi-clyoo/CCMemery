@@ -528,6 +528,58 @@ export type MemoryReadFileResult =
   | { success: true; content: string; path: string }
   | { success: false; error: string };
 
+// =============================================================================
+// Link Index (reverse references) types
+// =============================================================================
+
+/**
+ * Git working-tree state of a file, resolved by GitStatusResolver.
+ * - 'committed': tracked and unchanged since last commit
+ * - 'modified':   tracked with unstaged working-tree changes
+ * - 'staged':     staged (index) changes, no unstaged changes
+ * - 'untracked':  not tracked by git
+ * - 'none':       not inside a git repository (or status could not be resolved)
+ */
+export type GitFileStatus = 'committed' | 'modified' | 'staged' | 'untracked' | 'none';
+
+/**
+ * A file that links to an indexed file — i.e. one of the CLAUDE.md / MEMORY.md
+ * files that reference it. Used for the reverse index (backlinks).
+ */
+export interface IndexSourceRef {
+  /** Absolute path of the file containing the link */
+  path: string;
+  /** Basename of the source file, for display */
+  fileName: string;
+  /** 1-based line number of the link inside the source file */
+  line?: number;
+}
+
+/**
+ * A markdown file that is linked from CLAUDE.md / MEMORY.md, grouped by directory.
+ */
+export interface IndexedFile {
+  /** Absolute path of the linked file */
+  path: string;
+  /** Basename, for display */
+  fileName: string;
+  /** Absolute parent directory, used for directory grouping */
+  dir: string;
+  /** Files that link to this file */
+  sources: IndexSourceRef[];
+}
+
+/**
+ * Result of memory:getLinkIndex — the reverse index plus git status for every
+ * file path that was requested (so the renderer can render git icons everywhere).
+ */
+export interface LinkIndexResult {
+  /** Indexed files (targets of links), ordered by directory then file name */
+  files: IndexedFile[];
+  /** Git status keyed by absolute file path */
+  git: Record<string, GitFileStatus>;
+}
+
 export type MemoryOpenResult = { success: true } | { success: false; error: string };
 
 export interface CreateFileResult {
@@ -540,6 +592,11 @@ export interface CreateFileResult {
 export interface MemoryAPI {
   hasMemory: (projectId: string) => Promise<boolean>;
   getIndex: (projectId: string) => Promise<MemoryIndex | null>;
+  getLinkIndex: (
+    projectId: string,
+    projectPath: string,
+    paths: string[]
+  ) => Promise<LinkIndexResult | null>;
   readFile: (projectId: string, fileName: string) => Promise<MemoryReadFileResult>;
   saveFile: (projectId: string, fileName: string, content: string) => Promise<MemoryOpenResult>;
   deleteFile: (projectId: string, fileName: string) => Promise<MemoryOpenResult>;

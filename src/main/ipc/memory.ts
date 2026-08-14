@@ -21,6 +21,7 @@ import { clipboard, type IpcMain, type IpcMainInvokeEvent } from 'electron';
 // module boundaries — main process cannot import from preload).
 const MEMORY_HAS_MEMORY = 'memory:hasMemory';
 const MEMORY_GET_INDEX = 'memory:getIndex';
+const MEMORY_GET_LINK_INDEX = 'memory:getLinkIndex';
 const MEMORY_READ_FILE = 'memory:readFile';
 const MEMORY_SAVE_FILE = 'memory:saveFile';
 const MEMORY_DELETE_FILE = 'memory:deleteFile';
@@ -29,11 +30,17 @@ const MEMORY_LIST_OPENERS = 'memory:listAvailableOpeners';
 const MEMORY_OPEN_IN = 'memory:openIn';
 const MEMORY_COPY_PATH = 'memory:copyPath';
 
+import { gitStatusResolver } from '@main/services/parsing/GitStatusResolver';
+
 import { validateProjectId } from './guards';
 
 import type { ServiceContextRegistry } from '../services';
 import type { OpenTarget, OpenTargetId } from '@main/utils/openInLauncher';
+import type { LinkIndexResult } from '@shared/types/api';
 import type { MemoryIndex } from '@shared/utils/memoryIndex';
+
+const MAX_LINK_INDEX_PATHS = 500;
+const MAX_PATH_LENGTH = 1024;
 
 const logger = createLogger('IPC:memory');
 
@@ -46,6 +53,7 @@ export function initializeMemoryHandlers(contextRegistry: ServiceContextRegistry
 export function registerMemoryHandlers(ipcMain: IpcMain): void {
   ipcMain.handle(MEMORY_HAS_MEMORY, handleHasMemory);
   ipcMain.handle(MEMORY_GET_INDEX, handleGetIndex);
+  ipcMain.handle(MEMORY_GET_LINK_INDEX, handleGetLinkIndex);
   ipcMain.handle(MEMORY_READ_FILE, handleReadFile);
   ipcMain.handle(MEMORY_SAVE_FILE, handleSaveFile);
   ipcMain.handle(MEMORY_DELETE_FILE, handleDeleteFile);
@@ -59,6 +67,7 @@ export function registerMemoryHandlers(ipcMain: IpcMain): void {
 export function removeMemoryHandlers(ipcMain: IpcMain): void {
   ipcMain.removeHandler(MEMORY_HAS_MEMORY);
   ipcMain.removeHandler(MEMORY_GET_INDEX);
+  ipcMain.removeHandler(MEMORY_GET_LINK_INDEX);
   ipcMain.removeHandler(MEMORY_READ_FILE);
   ipcMain.removeHandler(MEMORY_SAVE_FILE);
   ipcMain.removeHandler(MEMORY_DELETE_FILE);
@@ -105,6 +114,37 @@ async function handleGetIndex(
     logger.error('Error in memory:getIndex:', error);
     return null;
   }
+}
+
+async function handleGetLinkIndex(
+  _event: IpcMainInvokeEvent,
+  projectId: unknown,
+  projectPath: unknown,
+  paths: unknown
+): Promise<LinkIndexResult | null> {
+  const projectIdResult = validateProjectId(projectId);
+  if (!projectIdResult.valid || !projectIdResult.value) return null;
+  if (typeof projectPath !== 'string' || projectPath.trim().length === 0) return null;
+  const allPaths = normalizePaths(paths);
+  try {
+    const active = registry.getActive();
+    const files = await active.linkIndexer.buildIndex(projectIdResult.value, projectPath);
+    const gitPaths = [...new Set([...allPaths, ...files.map((f) => f.path)])];
+    const git = await gitStatusResolver.resolveStatuses(gitPaths);
+    return { files, git };
+  } catch (error) {
+    logger.error('Error in memory:getLinkIndex:', error);
+    return null;
+  }
+}
+
+function normalizePaths(paths: unknown): string[] {
+  if (!Array.isArray(paths)) return [];
+  return paths
+    .filter((p): p is string => typeof p === 'string' && p.trim().length > 0)
+    .map((p) => p.trim())
+    .filter((p) => p.length <= MAX_PATH_LENGTH)
+    .slice(0, MAX_LINK_INDEX_PATHS);
 }
 
 async function handleReadFile(

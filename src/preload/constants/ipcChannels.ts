@@ -195,6 +195,9 @@ export const MEMORY_HAS_MEMORY = 'memory:hasMemory';
 /** Read parsed MEMORY.md index + orphan files for a project */
 export const MEMORY_GET_INDEX = 'memory:getIndex';
 
+/** Build reverse index (files linked from CLAUDE.md / MEMORY.md) + git status */
+export const MEMORY_GET_LINK_INDEX = 'memory:getLinkIndex';
+
 /** Read a single memory .md file */
 export const MEMORY_READ_FILE = 'memory:readFile';
 

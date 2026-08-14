@@ -12,6 +12,7 @@
  */
 
 import { ChunkBuilder } from '@main/services/analysis/ChunkBuilder';
+import { LinkIndexer } from '@main/services/discovery/LinkIndexer';
 import { MemoryReader } from '@main/services/discovery/MemoryReader';
 import { ProjectScanner } from '@main/services/discovery/ProjectScanner';
 import { SubagentResolver } from '@main/services/discovery/SubagentResolver';
@@ -71,6 +72,7 @@ export class ServiceContext {
   // Service instances
   readonly projectScanner: ProjectScanner;
   readonly memoryReader: MemoryReader;
+  readonly linkIndexer: LinkIndexer;
   readonly sessionParser: SessionParser;
   readonly subagentResolver: SubagentResolver;
   readonly chunkBuilder: ChunkBuilder;
@@ -99,6 +101,9 @@ export class ServiceContext {
 
     // 1b. MemoryReader - reads ~/.claude/projects/<id>/memory/
     this.memoryReader = new MemoryReader(config.projectsDir, config.fsProvider);
+
+    // 1c. LinkIndexer - reverse index of CLAUDE.md / MEMORY.md links
+    this.linkIndexer = new LinkIndexer(this.memoryReader);
 
     // 2. SessionParser - depends on ProjectScanner
     this.sessionParser = new SessionParser(this.projectScanner);

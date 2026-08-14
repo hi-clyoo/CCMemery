@@ -11,5 +11,7 @@
 export * from './AgentConfigReader';
 export * from './ClaudeMdReader';
 export * from './GitIdentityResolver';
+export * from './GitStatusResolver';
+export * from './LinkParser';
 export * from './MessageClassifier';
 export * from './SessionParser';
