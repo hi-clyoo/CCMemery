@@ -23,6 +23,9 @@ Always use pnpm (not npm/yarn) for this project.
 - `pnpm test:noise` - Noise filtering tests
 - `pnpm test:task-filtering` - Task tool filtering tests
 
+## Release & Screenshots
+发布与截图完整流程见 **`docs/RELEASE_SCREENSHOTS.md`**（版本号同步 → 打 tag → CI 建 draft → API 发布；CDP 真实渲染截图 + **内容区必须打码** + 已知坑）。
+
 ## Path Aliases
 Use path aliases for imports:
 - `@main/*` → `src/main/*`
