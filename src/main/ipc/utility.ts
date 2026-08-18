@@ -311,13 +311,9 @@ function isPathSafe(p: string): boolean {
   const normalizedHome = home.replace(/\\/g, '/');
   if (normalized.startsWith(normalizedHome)) return true;
   if (normalized.startsWith('/')) return true;
-  // Allow Program Files (for Managed CLAUDE.md from Claude Code installation)
-  if (process.platform === 'win32') {
-    const progFiles = (process.env.ProgramFiles || 'C:/Program Files').replace(/\\/g, '/');
-    if (normalized.startsWith(progFiles)) return true;
-    const progFilesX86 = (process.env['ProgramFiles(x86)'] || '').replace(/\\/g, '/');
-    if (progFilesX86 && normalized.startsWith(progFilesX86)) return true;
-  }
+  // Windows absolute paths with a drive letter (e.g. "D:/Code/...") are safe.
+  // The POSIX "/" check above already covers macOS/Linux absolute paths.
+  if (/^[a-zA-Z]:\//.test(normalized)) return true;
   return false;
 }
 
