@@ -164,3 +164,27 @@ Note: renderer utils/hooks/types do NOT have barrel exports — import directly 
 
 Dev server port: `9015` (set in electron.vite.config.ts and src/shared/constants/window.ts)
 Use `pnpm dev` to start. Electron window will auto-launch at port 9015.
+
+## Cross-platform Path Handling (macOS / Windows)
+
+Path handling must work on **both** macOS and Windows. These rules are mandatory:
+
+1. **Windows drive-letter paths do NOT start with `/`.** A safety check that only
+   allows `path.startsWith('/')` (or only the home dir) silently breaks on Windows
+   for projects outside the home dir (e.g. `D:/Code/...`). Always also allow
+   drive-letter absolute paths: `/^[a-zA-Z]:\//.test(normalized)`.
+
+2. **`decodePath()` is lossy for paths containing dashes** (`trade-desk0` decodes
+   to `trade/desk0`). Never trust `decodePath` for the canonical project path.
+   Prefer the session JSONL `cwd` field (authoritative) — see
+   `ProjectPathResolver.resolveProjectPath` / `extractCwd`.
+
+3. **Normalize before comparing.** Always `p.replace(/\\/g, '/')` before any
+   `startsWith` / prefix comparison, since Windows reports `\` separators.
+
+4. **WSL mount paths** (`/mnt/c/...`) may appear in data; translate them with
+   `translateWslMountPath()` when running on Windows.
+
+Reference bug: `trade-desk0` CLAUDE.md was not readable because `isPathSafe`
+rejected every non-home drive-letter path. Fixed by adding rule #1.
+

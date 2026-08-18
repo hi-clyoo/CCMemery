@@ -116,6 +116,22 @@ function loadLang(): Lang {
 function saveLang(l: Lang): void {
   try { localStorage.setItem(LANG_KEY, l) } catch { /* */ }
 }
+
+const HIDDEN_KEY = 'cc-memory-hidden-projects'
+function loadHidden(): string[] {
+  try { return JSON.parse(localStorage.getItem(HIDDEN_KEY) || '[]') as string[] } catch { return [] }
+}
+function saveHidden(ids: string[]): void {
+  try { localStorage.setItem(HIDDEN_KEY, JSON.stringify(ids)) } catch { /* */ }
+}
+
+const FILTER_KEY = 'cc-memory-filter-rules'
+function loadFilters(): string[] {
+  try { return JSON.parse(localStorage.getItem(FILTER_KEY) || '[]') as string[] } catch { return [] }
+}
+function saveFilters(rules: string[]): void {
+  try { localStorage.setItem(FILTER_KEY, JSON.stringify(rules)) } catch { /* */ }
+}
 /** Localize a group definition's display fields. */
 function localizeGroup(
   g: { label: string; desc: string; path: string; priority: string; labelZh: string; descZh: string; pathZh: string; priorityZh: string },
@@ -212,6 +228,48 @@ const App: React.FC = () => {
     })
   }, [])
   const [appVersion, setAppVersion] = useState('')
+
+  // Hidden projects (persisted)
+  const [hiddenIds, setHiddenIds] = useState<string[]>(() => loadHidden())
+  const [showHidden, setShowHidden] = useState(false)
+  const [showFiltered, setShowFiltered] = useState(false)
+  const hideProject = useCallback((id: string) => {
+    setHiddenIds(prev => {
+      const next = [...new Set([...prev, id])]
+      saveHidden(next)
+      return next
+    })
+  }, [])
+  const unhideProject = useCallback((id: string) => {
+    setHiddenIds(prev => {
+      const next = prev.filter(x => x !== id)
+      saveHidden(next)
+      return next
+    })
+  }, [])
+
+  // Auto-filter rules (prefix match on project title) + settings panel
+  const [filterRules, setFilterRules] = useState<string[]>(() => loadFilters())
+  const [showSettings, setShowSettings] = useState(false)
+  const addFilterRule = useCallback((rule: string) => {
+    const r = rule.trim()
+    if (!r) return
+    setFilterRules(prev => {
+      if (prev.includes(r)) return prev
+      const next = [...prev, r]
+      saveFilters(next)
+      return next
+    })
+  }, [])
+  const removeFilterRule = useCallback((rule: string) => {
+    setFilterRules(prev => {
+      const next = prev.filter(x => x !== rule)
+      saveFilters(next)
+      return next
+    })
+  }, [])
+  const [filterInput, setFilterInput] = useState('')
+  const [openSection, setOpenSection] = useState<'theme' | 'lang' | 'filter' | 'about' | null>('theme')
 
   // macOS hidden title bar: reserve space for the native traffic lights.
   // Windows/Linux use CustomTitleBar instead, so no left padding needed there.
@@ -613,6 +671,55 @@ const App: React.FC = () => {
     ? (linkIndex?.files.find(f => f.path === selectedFile.path)?.sources ?? [])
     : []
 
+  // Split projects: filtered (auto-rule match) → hidden (manual) → active/empty.
+  const hiddenSet = new Set(hiddenIds)
+  const isFiltered = (p: Project): boolean => {
+    const title = projectTitle(p)
+    return filterRules.some(rule => title.startsWith(rule))
+  }
+  const filteredProjects = projects.filter(p => isFiltered(p) && !hiddenSet.has(p.id))
+  const visibleProjects = projects.filter(p => !hiddenSet.has(p.id) && !isFiltered(p))
+  const activeProjects = visibleProjects.filter(p => p.sessions.length > 0)
+  const emptyProjects = visibleProjects.filter(p => p.sessions.length === 0)
+  const hiddenProjects = projects.filter(p => hiddenSet.has(p.id))
+
+  const renderProjectItem = (proj: Project, hidden = false): React.JSX.Element => (
+    <div key={proj.id}>
+      <div
+        className={`px-3 py-2 text-sm flex items-center gap-2 transition-colors hover:bg-surface-raised group ${
+          selectedProjectId === proj.id ? 'bg-blue-600/10' : ''}`}>
+        <span
+          onClick={(e) => handleArrowClick(e, proj.id)}
+          className="text-xs text-text-muted cursor-pointer hover:text-text-secondary px-0.5"
+        >{expandedProject === proj.id ? '▼' : '▶'}</span>
+        <span className="text-xs">📁</span>
+        <span
+          onClick={() => handleProjectClick(proj)}
+          className={`font-medium truncate cursor-pointer flex-1 ${hidden ? 'text-text-muted' : 'text-text-secondary'}`} title={proj.path || proj.name}>{projectTitle(proj)}</span>
+        <span className="text-xs text-text-muted">{proj.sessions.length}</span>
+        <button
+          onClick={(e) => { e.stopPropagation(); hidden ? unhideProject(proj.id) : hideProject(proj.id) }}
+          title={hidden ? t(lang, 'Show', '显示') : t(lang, 'Hide', '隐藏')}
+          className="text-xs text-text-muted opacity-0 group-hover:opacity-100 hover:text-text transition-opacity px-1"
+        >
+          {hidden ? '👁' : '🙈'}
+        </button>
+      </div>
+      {expandedProject === proj.id && (
+        <div className="ml-6 border-l border-border">
+          {sessions.map((s) => (
+            <div key={s.id} onClick={() => handleSessionClick(s, proj.id)}
+              className={`px-3 py-1.5 cursor-pointer text-xs transition-colors hover:bg-surface-raised truncate ${
+                selectedSession?.id === s.id ? 'text-blue-400 bg-blue-600/10' : 'text-text-muted'
+              }`}>
+              {s.firstMessage?.slice(0, 40) || s.id.slice(0, 8)}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+
   return (
     <div className="flex flex-col h-screen bg-surface text-text">
       <CustomTitleBar />
@@ -665,45 +772,55 @@ const App: React.FC = () => {
               </>
             )}
 
-            {/* Project list */}
-            {projects.map((proj) => (
-              <div key={proj.id}>
-                <div
-                  className={`px-3 py-2 text-sm flex items-center gap-2 transition-colors hover:bg-surface-raised ${
-                    selectedProjectId === proj.id ? 'bg-blue-600/10' : ''}`}>
-                  <span
-                    onClick={(e) => handleArrowClick(e, proj.id)}
-                    className="text-xs text-text-muted cursor-pointer hover:text-text-secondary px-0.5"
-                  >{expandedProject === proj.id ? '▼' : '▶'}</span>
-                  <span className="text-xs">📁</span>
-                  <span
-                    onClick={() => handleProjectClick(proj)}
-                    className="text-text-secondary font-medium truncate cursor-pointer flex-1" title={proj.path || proj.name}>{projectTitle(proj)}</span>
-                  <span className="text-xs text-text-muted">{proj.sessions.length}</span>
+            {/* Active projects */}
+            {activeProjects.map(p => renderProjectItem(p))}
+
+            {/* Empty projects (conversations deleted) — grouped at the bottom */}
+            {emptyProjects.length > 0 && (
+              <>
+                <div className="px-3 pt-3 pb-1 text-[10px] text-text-muted uppercase tracking-wider">
+                  {t(lang, 'Empty / Deleted', '空项目 / 已删除')}
                 </div>
-                {expandedProject === proj.id && (
-                  <div className="ml-6 border-l border-border">
-                    {sessions.map((s) => (
-                      <div key={s.id} onClick={() => handleSessionClick(s, proj.id)}
-                        className={`px-3 py-1.5 cursor-pointer text-xs transition-colors hover:bg-surface-raised truncate ${
-                          selectedSession?.id === s.id ? 'text-blue-400 bg-blue-600/10' : 'text-text-muted'
-                        }`}>
-                        {s.firstMessage?.slice(0, 40) || s.id.slice(0, 8)}
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            ))}
+                {emptyProjects.map(p => renderProjectItem(p))}
+              </>
+            )}
+
+            {/* Hidden projects — collapsed by default */}
+            {hiddenProjects.length > 0 && (
+              <>
+                <div
+                  onClick={() => setShowHidden(!showHidden)}
+                  className="px-3 pt-3 pb-1 flex items-center gap-1 cursor-pointer text-[10px] text-text-muted uppercase tracking-wider hover:text-text-secondary transition-colors"
+                >
+                  <span>{showHidden ? '▼' : '▶'}</span>
+                  <span>{t(lang, `Hidden (${hiddenProjects.length})`, `已隐藏 (${hiddenProjects.length})`)}</span>
+                </div>
+                {showHidden && hiddenProjects.map(p => renderProjectItem(p, true))}
+              </>
+            )}
+
+            {/* Auto-filtered projects — collapsed by default */}
+            {filteredProjects.length > 0 && (
+              <>
+                <div
+                  onClick={() => setShowFiltered(!showFiltered)}
+                  className="px-3 pt-3 pb-1 flex items-center gap-1 cursor-pointer text-[10px] text-text-muted uppercase tracking-wider hover:text-text-secondary transition-colors"
+                >
+                  <span>{showFiltered ? '▼' : '▶'}</span>
+                  <span>{t(lang, `Filtered (${filteredProjects.length})`, `已过滤 (${filteredProjects.length})`)}</span>
+                </div>
+                {showFiltered && filteredProjects.map(p => renderProjectItem(p, true))}
+              </>
+            )}
           </div>
           <div className="shrink-0 border-t border-border px-3 py-2">
             <button
-              onClick={() => { setShowAbout(!showAbout); setSelectedFile(null); setSelectedSession(null) }}
+              onClick={() => { setShowSettings(!showSettings); setShowAbout(false); setSelectedFile(null); setSelectedSession(null) }}
               className={`w-full text-xs py-1.5 rounded transition-colors ${
-                showAbout ? 'bg-blue-600/20 text-blue-400' : 'text-text-muted hover:text-text hover:bg-surface-raised'
+                showSettings ? 'bg-blue-600/20 text-blue-400' : 'text-text-muted hover:text-text hover:bg-surface-raised'
               }`}
             >
-              {showAbout ? t(lang, '✕ Close', '✕ 关闭') : t(lang, 'ℹ About — Loading Rules', 'ℹ 关于 — 加载规则')}
+              {showSettings ? t(lang, '✕ Close', '✕ 关闭') : t(lang, '⚙ Settings', '⚙ 设置')}
             </button>
           </div>
         </div>
@@ -802,7 +919,151 @@ const App: React.FC = () => {
 
         {/* Column 3: Content Viewer */}
         <div className="flex-1 flex flex-col bg-surface min-w-[160px]">
-          {showAbout ? (
+          {showSettings ? (
+            <div className="flex-1 overflow-y-auto p-6">
+              <div className="max-w-xl mx-auto space-y-2">
+                <h2 className="text-sm font-semibold text-text pb-3">{t(lang, 'Settings', '设置')}</h2>
+
+                {/* Theme */}
+                <section className="bg-surface-sidebar rounded border border-border">
+                  <button
+                    onClick={() => setOpenSection(openSection === 'theme' ? null : 'theme')}
+                    className="w-full px-4 py-2.5 flex items-center gap-2 text-xs font-semibold text-text hover:bg-surface-raised/50 transition-colors"
+                  >
+                    <span className="text-text-muted text-[10px]">{openSection === 'theme' ? '▼' : '▶'}</span>
+                    <span>{t(lang, 'Theme', '主题')}</span>
+                    <span className="ml-auto text-text-muted text-[10px]">{isLight ? t(lang, 'Light', '亮色') : t(lang, 'Dark', '暗色')}</span>
+                  </button>
+                  {openSection === 'theme' && (
+                    <div className="px-4 pb-3 pt-1 border-t border-border">
+                      <button
+                        onClick={toggleTheme}
+                        className="text-xs px-3 py-1.5 rounded border border-border text-text-secondary hover:text-text hover:bg-surface-raised transition-colors"
+                      >
+                        {isLight ? t(lang, '☀ Light', '☀ 亮色') : t(lang, '🌙 Dark', '🌙 暗色')}
+                      </button>
+                    </div>
+                  )}
+                </section>
+
+                {/* Language */}
+                <section className="bg-surface-sidebar rounded border border-border">
+                  <button
+                    onClick={() => setOpenSection(openSection === 'lang' ? null : 'lang')}
+                    className="w-full px-4 py-2.5 flex items-center gap-2 text-xs font-semibold text-text hover:bg-surface-raised/50 transition-colors"
+                  >
+                    <span className="text-text-muted text-[10px]">{openSection === 'lang' ? '▼' : '▶'}</span>
+                    <span>{t(lang, 'Language', '语言')}</span>
+                    <span className="ml-auto text-text-muted text-[10px]">{lang === 'zh' ? '中文' : 'English'}</span>
+                  </button>
+                  {openSection === 'lang' && (
+                    <div className="px-4 pb-3 pt-1 border-t border-border">
+                      <button
+                        onClick={toggleLang}
+                        className="text-xs px-3 py-1.5 rounded border border-border text-text-secondary hover:text-text hover:bg-surface-raised transition-colors"
+                      >
+                        {lang === 'zh' ? 'English' : '中文'}
+                      </button>
+                    </div>
+                  )}
+                </section>
+
+                {/* Auto-filter rules */}
+                <section className="bg-surface-sidebar rounded border border-border">
+                  <button
+                    onClick={() => setOpenSection(openSection === 'filter' ? null : 'filter')}
+                    className="w-full px-4 py-2.5 flex items-center gap-2 text-xs font-semibold text-text hover:bg-surface-raised/50 transition-colors"
+                  >
+                    <span className="text-text-muted text-[10px]">{openSection === 'filter' ? '▼' : '▶'}</span>
+                    <span>{t(lang, 'Auto-filter Rules', '自动过滤规则')}</span>
+                    <span className="ml-auto text-text-muted text-[10px]">{filterRules.length}</span>
+                  </button>
+                  {openSection === 'filter' && (
+                    <div className="px-4 pb-3 pt-2 border-t border-border">
+                      <p className="text-[10px] text-text-muted mb-2">
+                        {lang === 'zh'
+                          ? '按文件夹名称前缀匹配，匹配的文件夹自动归入"已过滤"分组。例如输入 vibe-cli- 会过滤所有以它开头的临时目录。'
+                          : 'Prefix-match on folder name; matched folders are grouped as "Filtered". E.g. vibe-cli- filters all temp dirs starting with it.'}
+                      </p>
+                      <div className="flex gap-2 mb-2">
+                        <input
+                          value={filterInput}
+                          onChange={(e) => setFilterInput(e.target.value)}
+                          onKeyDown={(e) => { if (e.key === 'Enter') { addFilterRule(filterInput); setFilterInput('') } }}
+                          placeholder="vibe-cli-"
+                          className="flex-1 text-xs px-2 py-1.5 rounded border border-border bg-surface text-text outline-none focus:border-blue-500"
+                        />
+                        <button
+                          onClick={() => { addFilterRule(filterInput); setFilterInput('') }}
+                          className="text-xs px-3 py-1.5 rounded bg-blue-600 hover:bg-blue-500 text-white"
+                        >
+                          {t(lang, 'Add', '添加')}
+                        </button>
+                      </div>
+                      {filterRules.length > 0 && (
+                        <div className="space-y-1">
+                          {filterRules.map(rule => (
+                            <div key={rule} className="flex items-center gap-2 text-xs text-text-secondary">
+                              <span className="font-mono">{rule}</span>
+                              <span className="text-text-muted flex-1">→ {projects.filter(p => projectTitle(p).startsWith(rule)).length} {t(lang, 'projects', '个项目')}</span>
+                              <button
+                                onClick={() => removeFilterRule(rule)}
+                                className="text-text-muted hover:text-red-400 px-1"
+                              >✕</button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </section>
+
+                {/* About — Loading Rules */}
+                <section className="bg-surface-sidebar rounded border border-border">
+                  <button
+                    onClick={() => setOpenSection(openSection === 'about' ? null : 'about')}
+                    className="w-full px-4 py-2.5 flex items-center gap-2 text-xs font-semibold text-text hover:bg-surface-raised/50 transition-colors"
+                  >
+                    <span className="text-text-muted text-[10px]">{openSection === 'about' ? '▼' : '▶'}</span>
+                    <span>{t(lang, 'About — Loading Rules', '关于 — 加载规则')}</span>
+                  </button>
+                  {openSection === 'about' && (
+                    <div className="px-4 pb-4 pt-2 border-t border-border space-y-3">
+                      <p className="text-xs text-text-secondary leading-relaxed">
+                        {lang === 'zh' ? (
+                          <>所有 CLAUDE.md 文件在 Claude 启动时都会<span className="text-text">合并在一起</span>加载。
+                          没有哪个文件会“覆盖”另一个文件——所有内容都会进入上下文。
+                          当指令冲突时，更具体的文件（本地 &gt; 项目 &gt; 用户）优先。</>
+                        ) : (
+                          <>All CLAUDE.md files are <span className="text-text">merged together</span> when Claude starts.
+                          No file &quot;overrides&quot; another — all content is visible in context.
+                          When instructions conflict, more specific files (Local &gt; Project &gt; User) take precedence.</>
+                        )}
+                      </p>
+                      {GROUP_DEFS.map((g) => {
+                        const loc = localizeGroup(g, lang)
+                        return (
+                          <div key={g.type} className="bg-surface rounded border border-border p-3">
+                            <div className="flex items-center gap-2 mb-1.5">
+                              <span className="text-base">{g.icon}</span>
+                              <span style={{ color: g.color }} className="text-sm font-semibold uppercase tracking-wide">{loc.label}</span>
+                            </div>
+                            <p className="text-xs text-text-secondary leading-relaxed mb-1">{loc.desc}</p>
+                            <p className="text-[10px] text-text-muted font-mono mb-0.5">{loc.path}</p>
+                            <p className="text-[10px] text-text-muted">{loc.priority}</p>
+                          </div>
+                        )
+                      })}
+                      <div className="text-[10px] text-text-muted pt-2 border-t border-border">
+                        <p>{t(lang, 'CC Memory — Claude Code memory file manager', 'CC Memory — Claude Code 记忆文件管理器')}</p>
+                        {appVersion && <p className="mt-0.5">v{appVersion}</p>}
+                      </div>
+                    </div>
+                  )}
+                </section>
+              </div>
+            </div>
+          ) : showAbout ? (
             <div className="flex-1 overflow-y-auto p-6">
               <div className="max-w-xl mx-auto space-y-5">
                 <h2 className="text-sm font-semibold text-text">{t(lang, 'Loading Rules', '加载规则')}</h2>
