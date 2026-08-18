@@ -269,7 +269,6 @@ const App: React.FC = () => {
     })
   }, [])
   const [filterInput, setFilterInput] = useState('')
-  const [openSection, setOpenSection] = useState<'theme' | 'lang' | 'filter' | 'about' | null>('theme')
 
   // macOS hidden title bar: reserve space for the native traffic lights.
   // Windows/Linux use CustomTitleBar instead, so no left padding needed there.
@@ -489,6 +488,7 @@ const App: React.FC = () => {
 
   const handleProjectClick = useCallback((proj: Project) => {
     setShowAbout(false)
+    setShowSettings(false)
     setGlobalSelected(false)
     setSelectedProjectId(proj.id)
     setSelectedProjectPath(proj.path || proj.name)
@@ -504,6 +504,7 @@ const App: React.FC = () => {
 
   const handleSessionClick = useCallback(async (session: Session, projectId: string) => {
     setShowAbout(false)
+    setShowSettings(false)
     setSelectedSession(session)
     setSelectedFile(null)
     setEditingContent('')
@@ -532,6 +533,7 @@ const App: React.FC = () => {
     const resolved = content ?? ''
     originalContentRef.current = resolved
     setShowAbout(false)
+    setShowSettings(false)
     setSelectedFile(f)
     setEditingContent(resolved)
     setIsDirty(false)
@@ -839,9 +841,35 @@ const App: React.FC = () => {
               {selectedProjectPath ? selectedProjectPath.split(/[\\/]/).pop() : t(lang, 'Memory Files', '记忆文件')}
             </h2>
           </div>
+          {/* Settings category navigation — only shown while Settings is open */}
+          {showSettings && (
+            <div className="shrink-0 border-b border-border py-1.5">
+              {[
+                { key: 'theme', icon: '🎨', en: 'Theme', zh: '主题' },
+                { key: 'lang', icon: '🌐', en: 'Language', zh: '语言' },
+                { key: 'filter', icon: '🔍', en: 'Filter', zh: '过滤' },
+                { key: 'about', icon: 'ℹ️', en: 'About', zh: '关于' },
+              ].map((s) => (
+                <button
+                  key={s.key}
+                  onClick={() => {
+                    setShowSettings(true)
+                    setShowAbout(false)
+                    setTimeout(() => {
+                      document.getElementById(`setting-${s.key}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+                    }, 50)
+                  }}
+                  className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-text-muted hover:text-text hover:bg-surface-raised transition-colors"
+                >
+                  <span>{s.icon}</span>
+                  <span>{t(lang, s.en, s.zh)}</span>
+                </button>
+              ))}
+            </div>
+          )}
           <div className="flex-1 overflow-y-auto">
             {/* Global folder content */}
-            {globalSelected && (
+            {!showSettings && globalSelected && (
               <div className="py-1 border-b border-border">
                 {globalGroups.map((group) => {
                   const hasFiles = group.files.length > 0
@@ -876,7 +904,7 @@ const App: React.FC = () => {
             )}
 
             {/* Project-specific files */}
-            {!selectedProjectId && !globalSelected ? (
+            {showSettings ? null : !selectedProjectId && !globalSelected ? (
               <div className="p-4 text-sm text-text-muted">{t(lang, 'Select a project or Global', '选择一个项目或全局')}</div>
             ) : !selectedProjectId ? null : loadingFiles ? (
               <div className="flex justify-center py-8">
@@ -922,145 +950,104 @@ const App: React.FC = () => {
         <div className="flex-1 flex flex-col bg-surface min-w-[160px]">
           {showSettings ? (
             <div className="flex-1 overflow-y-auto p-6">
-              <div className="max-w-xl mx-auto space-y-2">
-                <h2 className="text-sm font-semibold text-text pb-3">{t(lang, 'Settings', '设置')}</h2>
+              <div className="max-w-xl mx-auto space-y-4">
+                <h2 className="text-sm font-semibold text-text">{t(lang, 'Settings', '设置')}</h2>
 
                 {/* Theme */}
-                <section className="bg-surface-sidebar rounded border border-border">
+                <section id="setting-theme" className="bg-surface-sidebar rounded border border-border p-4">
+                  <h3 className="text-xs font-semibold text-text mb-2">{t(lang, 'Theme', '主题')}</h3>
                   <button
-                    onClick={() => setOpenSection(openSection === 'theme' ? null : 'theme')}
-                    className="w-full px-4 py-2.5 flex items-center gap-2 text-xs font-semibold text-text hover:bg-surface-raised/50 transition-colors"
+                    onClick={toggleTheme}
+                    className="text-xs px-3 py-1.5 rounded border border-border text-text-secondary hover:text-text hover:bg-surface-raised transition-colors"
                   >
-                    <span className="text-text-muted text-[10px]">{openSection === 'theme' ? '▼' : '▶'}</span>
-                    <span>{t(lang, 'Theme', '主题')}</span>
-                    <span className="ml-auto text-text-muted text-[10px]">{isLight ? t(lang, 'Light', '亮色') : t(lang, 'Dark', '暗色')}</span>
+                    {isLight ? t(lang, '☀ Light', '☀ 亮色') : t(lang, '🌙 Dark', '🌙 暗色')}
                   </button>
-                  {openSection === 'theme' && (
-                    <div className="px-4 pb-3 pt-1 border-t border-border">
-                      <button
-                        onClick={toggleTheme}
-                        className="text-xs px-3 py-1.5 rounded border border-border text-text-secondary hover:text-text hover:bg-surface-raised transition-colors"
-                      >
-                        {isLight ? t(lang, '☀ Light', '☀ 亮色') : t(lang, '🌙 Dark', '🌙 暗色')}
-                      </button>
-                    </div>
-                  )}
                 </section>
 
                 {/* Language */}
-                <section className="bg-surface-sidebar rounded border border-border">
+                <section id="setting-lang" className="bg-surface-sidebar rounded border border-border p-4">
+                  <h3 className="text-xs font-semibold text-text mb-2">{t(lang, 'Language', '语言')}</h3>
                   <button
-                    onClick={() => setOpenSection(openSection === 'lang' ? null : 'lang')}
-                    className="w-full px-4 py-2.5 flex items-center gap-2 text-xs font-semibold text-text hover:bg-surface-raised/50 transition-colors"
+                    onClick={toggleLang}
+                    className="text-xs px-3 py-1.5 rounded border border-border text-text-secondary hover:text-text hover:bg-surface-raised transition-colors"
                   >
-                    <span className="text-text-muted text-[10px]">{openSection === 'lang' ? '▼' : '▶'}</span>
-                    <span>{t(lang, 'Language', '语言')}</span>
-                    <span className="ml-auto text-text-muted text-[10px]">{lang === 'zh' ? '中文' : 'English'}</span>
+                    {lang === 'zh' ? 'English' : '中文'}
                   </button>
-                  {openSection === 'lang' && (
-                    <div className="px-4 pb-3 pt-1 border-t border-border">
-                      <button
-                        onClick={toggleLang}
-                        className="text-xs px-3 py-1.5 rounded border border-border text-text-secondary hover:text-text hover:bg-surface-raised transition-colors"
-                      >
-                        {lang === 'zh' ? 'English' : '中文'}
-                      </button>
-                    </div>
-                  )}
                 </section>
 
                 {/* Auto-filter rules */}
-                <section className="bg-surface-sidebar rounded border border-border">
-                  <button
-                    onClick={() => setOpenSection(openSection === 'filter' ? null : 'filter')}
-                    className="w-full px-4 py-2.5 flex items-center gap-2 text-xs font-semibold text-text hover:bg-surface-raised/50 transition-colors"
-                  >
-                    <span className="text-text-muted text-[10px]">{openSection === 'filter' ? '▼' : '▶'}</span>
-                    <span>{t(lang, 'Auto-filter Rules', '自动过滤规则')}</span>
-                    <span className="ml-auto text-text-muted text-[10px]">{filterRules.length}</span>
-                  </button>
-                  {openSection === 'filter' && (
-                    <div className="px-4 pb-3 pt-2 border-t border-border">
-                      <p className="text-[10px] text-text-muted mb-2">
-                        {lang === 'zh'
-                          ? '按文件夹名称前缀匹配，匹配的文件夹自动归入"已过滤"分组。例如输入 vibe-cli- 会过滤所有以它开头的临时目录。'
-                          : 'Prefix-match on folder name; matched folders are grouped as "Filtered". E.g. vibe-cli- filters all temp dirs starting with it.'}
-                      </p>
-                      <div className="flex gap-2 mb-2">
-                        <input
-                          value={filterInput}
-                          onChange={(e) => setFilterInput(e.target.value)}
-                          onKeyDown={(e) => { if (e.key === 'Enter') { addFilterRule(filterInput); setFilterInput('') } }}
-                          placeholder="vibe-cli-"
-                          className="flex-1 text-xs px-2 py-1.5 rounded border border-border bg-surface text-text outline-none focus:border-blue-500"
-                        />
-                        <button
-                          onClick={() => { addFilterRule(filterInput); setFilterInput('') }}
-                          className="text-xs px-3 py-1.5 rounded bg-blue-600 hover:bg-blue-500 text-white"
-                        >
-                          {t(lang, 'Add', '添加')}
-                        </button>
-                      </div>
-                      {filterRules.length > 0 && (
-                        <div className="space-y-1">
-                          {filterRules.map(rule => (
-                            <div key={rule} className="flex items-center gap-2 text-xs text-text-secondary">
-                              <span className="font-mono">{rule}</span>
-                              <span className="text-text-muted flex-1">→ {projects.filter(p => projectTitle(p).startsWith(rule)).length} {t(lang, 'projects', '个项目')}</span>
-                              <button
-                                onClick={() => removeFilterRule(rule)}
-                                className="text-text-muted hover:text-red-400 px-1"
-                              >✕</button>
-                            </div>
-                          ))}
+                <section id="setting-filter" className="bg-surface-sidebar rounded border border-border p-4">
+                  <h3 className="text-xs font-semibold text-text mb-1">{t(lang, 'Auto-filter Rules', '自动过滤规则')}</h3>
+                  <p className="text-[10px] text-text-muted mb-2">
+                    {lang === 'zh'
+                      ? '按文件夹名称前缀匹配，匹配的文件夹自动归入"已过滤"分组。例如输入 vibe-cli- 会过滤所有以它开头的临时目录。'
+                      : 'Prefix-match on folder name; matched folders are grouped as "Filtered". E.g. vibe-cli- filters all temp dirs starting with it.'}
+                  </p>
+                  <div className="flex gap-2 mb-2">
+                    <input
+                      value={filterInput}
+                      onChange={(e) => setFilterInput(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === 'Enter') { addFilterRule(filterInput); setFilterInput('') } }}
+                      placeholder="vibe-cli-"
+                      className="flex-1 text-xs px-2 py-1.5 rounded border border-border bg-surface text-text outline-none focus:border-blue-500"
+                    />
+                    <button
+                      onClick={() => { addFilterRule(filterInput); setFilterInput('') }}
+                      className="text-xs px-3 py-1.5 rounded bg-blue-600 hover:bg-blue-500 text-white"
+                    >
+                      {t(lang, 'Add', '添加')}
+                    </button>
+                  </div>
+                  {filterRules.length > 0 && (
+                    <div className="space-y-1">
+                      {filterRules.map(rule => (
+                        <div key={rule} className="flex items-center gap-2 text-xs text-text-secondary">
+                          <span className="font-mono">{rule}</span>
+                          <span className="text-text-muted flex-1">→ {projects.filter(p => projectTitle(p).startsWith(rule)).length} {t(lang, 'projects', '个项目')}</span>
+                          <button
+                            onClick={() => removeFilterRule(rule)}
+                            className="text-text-muted hover:text-red-400 px-1"
+                          >✕</button>
                         </div>
-                      )}
+                      ))}
                     </div>
                   )}
                 </section>
 
                 {/* About — Loading Rules */}
-                <section className="bg-surface-sidebar rounded border border-border">
-                  <button
-                    onClick={() => setOpenSection(openSection === 'about' ? null : 'about')}
-                    className="w-full px-4 py-2.5 flex items-center gap-2 text-xs font-semibold text-text hover:bg-surface-raised/50 transition-colors"
-                  >
-                    <span className="text-text-muted text-[10px]">{openSection === 'about' ? '▼' : '▶'}</span>
-                    <span>{t(lang, 'About — Loading Rules', '关于 — 加载规则')}</span>
-                  </button>
-                  {openSection === 'about' && (
-                    <div className="px-4 pb-4 pt-2 border-t border-border space-y-3">
-                      <p className="text-xs text-text-secondary leading-relaxed">
-                        {lang === 'zh' ? (
-                          <>所有 CLAUDE.md 文件在 Claude 启动时都会<span className="text-text">合并在一起</span>加载。
-                          没有哪个文件会“覆盖”另一个文件——所有内容都会进入上下文。
-                          当指令冲突时，更具体的文件（本地 &gt; 项目 &gt; 用户）优先。</>
-                        ) : (
-                          <>All CLAUDE.md files are <span className="text-text">merged together</span> when Claude starts.
-                          No file &quot;overrides&quot; another — all content is visible in context.
-                          When instructions conflict, more specific files (Local &gt; Project &gt; User) take precedence.</>
-                        )}
-                      </p>
-                      {GROUP_DEFS.map((g) => {
-                        const loc = localizeGroup(g, lang)
-                        return (
-                          <div key={g.type} className="bg-surface rounded border border-border p-3">
-                            <div className="flex items-center gap-2 mb-1.5">
-                              <span className="text-base">{g.icon}</span>
-                              <span style={{ color: g.color }} className="text-sm font-semibold uppercase tracking-wide">{loc.label}</span>
-                            </div>
-                            <p className="text-xs text-text-secondary leading-relaxed mb-1">{loc.desc}</p>
-                            <p className="text-[10px] text-text-muted font-mono mb-0.5">{loc.path}</p>
-                            <p className="text-[10px] text-text-muted">{loc.priority}</p>
+                <section id="setting-about" className="bg-surface-sidebar rounded border border-border p-4">
+                  <h3 className="text-xs font-semibold text-text mb-2">{t(lang, 'About — Loading Rules', '关于 — 加载规则')}</h3>
+                  <div className="space-y-3">
+                    <p className="text-xs text-text-secondary leading-relaxed">
+                      {lang === 'zh' ? (
+                        <>所有 CLAUDE.md 文件在 Claude 启动时都会<span className="text-text">合并在一起</span>加载。
+                        没有哪个文件会“覆盖”另一个文件——所有内容都会进入上下文。
+                        当指令冲突时，更具体的文件（本地 &gt; 项目 &gt; 用户）优先。</>
+                      ) : (
+                        <>All CLAUDE.md files are <span className="text-text">merged together</span> when Claude starts.
+                        No file &quot;overrides&quot; another — all content is visible in context.
+                        When instructions conflict, more specific files (Local &gt; Project &gt; User) take precedence.</>
+                      )}
+                    </p>
+                    {GROUP_DEFS.map((g) => {
+                      const loc = localizeGroup(g, lang)
+                      return (
+                        <div key={g.type} className="bg-surface rounded border border-border p-3">
+                          <div className="flex items-center gap-2 mb-1.5">
+                            <span className="text-base">{g.icon}</span>
+                            <span style={{ color: g.color }} className="text-sm font-semibold uppercase tracking-wide">{loc.label}</span>
                           </div>
-                        )
-                      })}
-                      <div className="text-[10px] text-text-muted pt-2 border-t border-border">
-                        <p>{t(lang, 'CC Memory — Claude Code memory file manager', 'CC Memory — Claude Code 记忆文件管理器')}</p>
-                        {appVersion && <p className="mt-0.5">v{appVersion}</p>}
-                      </div>
+                          <p className="text-xs text-text-secondary leading-relaxed mb-1">{loc.desc}</p>
+                          <p className="text-[10px] text-text-muted font-mono mb-0.5">{loc.path}</p>
+                          <p className="text-[10px] text-text-muted">{loc.priority}</p>
+                        </div>
+                      )
+                    })}
+                    <div className="text-[10px] text-text-muted pt-2 border-t border-border">
+                      <p>{t(lang, 'CC Memory — Claude Code memory file manager', 'CC Memory — Claude Code 记忆文件管理器')}</p>
+                      {appVersion && <p className="mt-0.5">v{appVersion}</p>}
                     </div>
-                  )}
+                  </div>
                 </section>
               </div>
             </div>
