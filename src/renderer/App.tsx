@@ -726,32 +726,8 @@ const App: React.FC = () => {
       <div ref={columnsRef} className="flex flex-1 min-h-0">
         {/* Column 1: Project Tree + Sessions */}
         <div style={{ width: col1Width, minWidth: 160 }} className="shrink-0 bg-surface-sidebar border-border flex flex-col">
-          <div className="p-3 border-b border-border flex items-center justify-end gap-2" style={{ WebkitAppRegion: 'drag', paddingLeft: trafficLightPadding } as React.CSSProperties}>
-            <div className="flex items-center gap-1.5 shrink-0" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
-              <button
-                onClick={() => void handleRefresh()}
-                title={lang === 'zh' ? '刷新（重新加载项目 / 会话 / 文件）' : 'Refresh (reload projects, sessions, files)'}
-                aria-label="Refresh"
-                className="flex items-center justify-center size-6 rounded border border-border text-text-muted hover:text-text hover:bg-surface-raised transition-colors"
-              >
-                <RefreshCw className={`size-3.5 ${refreshing ? 'animate-spin' : ''}`} />
-              </button>
-              <button
-                onClick={toggleTheme}
-                title={isLight ? 'Switch to dark' : 'Switch to light'}
-                aria-label="Toggle theme"
-                className="flex items-center justify-center size-6 rounded border border-border text-text-muted hover:text-text hover:bg-surface-raised transition-colors"
-              >
-                {isLight ? <Moon className="size-3.5" /> : <Sun className="size-3.5" />}
-              </button>
-              <button
-                onClick={toggleLang}
-                title={lang === 'zh' ? 'Switch to English' : '切换为中文'}
-                className="text-[10px] px-1.5 py-0.5 rounded border border-border text-text-muted hover:text-text hover:bg-surface-raised transition-colors"
-              >
-                {lang === 'zh' ? 'EN' : '中文'}
-              </button>
-            </div>
+          <div className="p-3 border-b border-border" style={{ WebkitAppRegion: 'drag', paddingLeft: trafficLightPadding } as React.CSSProperties}>
+            <h1 className="text-sm font-semibold text-text-secondary text-center">{t(lang, 'Working Directories', '工作目录')}</h1>
           </div>
           <div className="flex-1 overflow-y-auto">
             {/* Global CLAUDE.md — special folder at top */}
@@ -814,14 +790,39 @@ const App: React.FC = () => {
             )}
           </div>
           <div className="shrink-0 border-t border-border px-3 py-2">
-            <button
-              onClick={() => { setShowSettings(!showSettings); setShowAbout(false); setSelectedFile(null); setSelectedSession(null) }}
-              className={`w-full text-xs py-1.5 rounded transition-colors ${
-                showSettings ? 'bg-blue-600/20 text-blue-400' : 'text-text-muted hover:text-text hover:bg-surface-raised'
-              }`}
-            >
-              {showSettings ? t(lang, '✕ Close', '✕ 关闭') : t(lang, '⚙ Settings', '⚙ 设置')}
-            </button>
+            <div className="flex items-center gap-1.5">
+              <button
+                onClick={() => { setShowSettings(!showSettings); setShowAbout(false); setSelectedFile(null); setSelectedSession(null) }}
+                className={`flex-1 text-xs py-1.5 rounded transition-colors ${
+                  showSettings ? 'bg-blue-600/20 text-blue-400' : 'text-text-muted hover:text-text hover:bg-surface-raised'
+                }`}
+              >
+                {showSettings ? t(lang, '✕ Close', '✕ 关闭') : t(lang, '⚙ Settings', '⚙ 设置')}
+              </button>
+              <button
+                onClick={() => void handleRefresh()}
+                title={lang === 'zh' ? '刷新（重新加载项目 / 会话 / 文件）' : 'Refresh (reload projects, sessions, files)'}
+                aria-label="Refresh"
+                className="flex items-center justify-center size-7 rounded border border-border text-text-muted hover:text-text hover:bg-surface-raised transition-colors"
+              >
+                <RefreshCw className={`size-3.5 ${refreshing ? 'animate-spin' : ''}`} />
+              </button>
+              <button
+                onClick={toggleTheme}
+                title={isLight ? 'Switch to dark' : 'Switch to light'}
+                aria-label="Toggle theme"
+                className="flex items-center justify-center size-7 rounded border border-border text-text-muted hover:text-text hover:bg-surface-raised transition-colors"
+              >
+                {isLight ? <Moon className="size-3.5" /> : <Sun className="size-3.5" />}
+              </button>
+              <button
+                onClick={toggleLang}
+                title={lang === 'zh' ? 'Switch to English' : '切换为中文'}
+                className="flex items-center justify-center size-7 rounded border border-border text-[10px] text-text-muted hover:text-text hover:bg-surface-raised transition-colors"
+              >
+                {lang === 'zh' ? 'EN' : '中'}
+              </button>
+            </div>
           </div>
         </div>
 
@@ -834,8 +835,8 @@ const App: React.FC = () => {
         {/* Column 2: File Tree */}
         <div style={{ width: col2Width, minWidth: 160 }} className="shrink-0 bg-surface-sidebar/50 border-r border-border flex flex-col">
           <div className="p-3 border-b border-border" style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}>
-            <h2 className="text-sm font-medium text-text-secondary">
-              {selectedProjectPath ? selectedProjectPath.split(/[\\/]/).pop() : t(lang, 'Files', '文件')}
+            <h2 className="text-sm font-medium text-text-secondary text-center">
+              {selectedProjectPath ? selectedProjectPath.split(/[\\/]/).pop() : t(lang, 'Memory Files', '记忆文件')}
             </h2>
           </div>
           <div className="flex-1 overflow-y-auto">

@@ -8,9 +8,8 @@
 import { useEffect, useState } from 'react';
 
 import { isElectronMode } from '@renderer/api';
-import { useTheme } from '@renderer/hooks/useTheme';
 import iconUrl from '@renderer/icon.svg';
-import { Minus, Moon,Square, Sun, X } from 'lucide-react';
+import { Minus, Square, X } from 'lucide-react';
 
 const TITLE_BAR_HEIGHT = 32;
 
@@ -23,7 +22,6 @@ function needsCustomTitleBar(): boolean {
 export const CustomTitleBar = (): React.JSX.Element | null => {
   const [isMaximized, setIsMaximized] = useState(false);
   const [useNativeTitleBar, setUseNativeTitleBar] = useState(false);
-  const { isLight, toggleTheme } = useTheme();
   const showTitleBar = needsCustomTitleBar() && !useNativeTitleBar;
   const api = typeof window !== 'undefined' ? window.electronAPI?.windowControls : null;
 
@@ -63,16 +61,6 @@ export const CustomTitleBar = (): React.JSX.Element | null => {
       {/* Draggable area — app icon */}
       <div className="flex flex-1 items-center pl-3" style={{ minWidth: 0 }}>
         <img src={iconUrl} alt="" className="size-5 shrink-0 rounded-sm" draggable={false} />
-        <button
-          type="button"
-          onClick={toggleTheme}
-          className="ml-2 p-1 rounded transition-colors hover:bg-white/10"
-          style={{ color: 'var(--color-text-secondary)', WebkitAppRegion: 'no-drag' } as React.CSSProperties}
-          title={isLight ? 'Switch to dark' : 'Switch to light'}
-          aria-label="Toggle theme"
-        >
-          {isLight ? <Moon className="size-3.5" /> : <Sun className="size-3.5" />}
-        </button>
       </div>
 
       {/* Window controls — no-drag so they receive clicks */}
