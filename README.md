@@ -7,7 +7,7 @@ Claude Code 记忆文件管理器 —— 可视化查看、编辑和管理 Claud
 ![version](https://img.shields.io/badge/version-v0.2.0-blue)
 ![license](https://img.shields.io/badge/license-MIT-green)
 ![platform](https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20%7C%20Linux-lightgrey)
-![CI](https://img.shields.io/github/actions/workflow/status/hi-clyoo/CCMemery/ci.yml?branch=master&label=CI)
+![CI](https://img.shields.io/github/actions/workflow/status/hi-clyoo/CCMemory/ci.yml?branch=master&label=CI)
 
 ---
 
@@ -54,7 +54,7 @@ CC Memory 是一个 Electron 桌面应用，让你用可视化的方式管理 Cl
 | Windows | `CC-Memory-Setup-0.2.0-x64.exe` |
 | Linux | `CC-Memory-0.2.0-x86_64.AppImage` / `.deb` / `.rpm` |
 
-> **Download:** Get the latest installer from [GitHub Releases](https://github.com/hi-clyoo/CCMemery/releases/latest).
+> **Download:** Get the latest installer from [GitHub Releases](https://github.com/hi-clyoo/CCMemory/releases/latest).
 
 > ⚠️ **macOS 注意 / macOS note:** 当前版本未签名。首次打开若提示“无法验证开发者”，请 **右键点击应用 → 打开**，或到「系统设置 → 隐私与安全性」中允许运行。
 > The current build is unsigned. If Gatekeeper blocks it, **right-click the app → Open**, or allow it in System Settings → Privacy & Security.

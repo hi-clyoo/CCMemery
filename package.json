@@ -8,13 +8,13 @@
     "name": "clyoo",
     "email": "hi-clyoo@users.noreply.github.com"
   },
-  "homepage": "https://github.com/hi-clyoo/CCMemery",
+  "homepage": "https://github.com/hi-clyoo/CCMemory",
   "repository": {
     "type": "git",
-    "url": "https://github.com/hi-clyoo/CCMemery.git"
+    "url": "https://github.com/hi-clyoo/CCMemory.git"
   },
   "bugs": {
-    "url": "https://github.com/hi-clyoo/CCMemery/issues"
+    "url": "https://github.com/hi-clyoo/CCMemory/issues"
   },
   "main": "dist-electron/main/index.cjs",
   "scripts": {
