@@ -81,6 +81,12 @@
     <div id="splash-text">CC Memory</div>
   </div>
   <div id="root"></div>
+  <script src="/pokechat.js"></script>
+  <script>
+    // PokeChat: component picker + feedback dialog. 8124 = CCMemory's own
+    // backend (PokeChat/server.py), processed by a dedicated AI loop.
+    PokeChat.init({ endpoint: 'http://127.0.0.1:8124' });
+  </script>
   <script type="module" src="./main.tsx"></script>
 </body>
 </html>

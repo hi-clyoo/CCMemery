@@ -49,3 +49,6 @@ claude-dev.tools/*
 eslint-fix/
 remotion/*release/
 win-unpacked/
+
+# External tooling (independent git repo)
+PokeChat/
